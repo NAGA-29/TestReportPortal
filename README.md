@@ -1,4 +1,4 @@
-# Android Test Ledger
+# Android Test ReportPortal 
 
 Androidアプリの手動・自動テスト結果を記録するローカルWebアプリのベース実装です。
 React + TypeScript / Go + Echo / PostgreSQL 17。要件原本は [docs/requirements.md](docs/requirements.md)。
