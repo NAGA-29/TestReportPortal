@@ -294,7 +294,7 @@ function App() {
         <div className="brand">
           <span className="logo">✓</span>
           <div>
-            Test Ledger<small>ANDROID TEST REPORT</small>
+            Report Portal<small>ANDROID TEST REPORT</small>
           </div>
         </div>
         <div className="side-label">ワークスペース</div>
