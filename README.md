@@ -31,6 +31,21 @@ DBの既定資格情報はローカル開発用です。必要なら `.env` に 
 `BUILD_CA_FILE=/etc/ssl/certs/ca-certificates.crt` としてビルドに渡します。
 CAはBuildKit secretでのみ使用し、イメージに埋め込みません。
 
+既定値は Linux (Debian/Ubuntu系) のパスです。macOS には
+`/etc/ssl/certs/ca-certificates.crt` が存在せず、`docker compose up` が
+`failed to stat /etc/ssl/certs/ca-certificates.crt` で失敗します。
+その場合は macOS のCAバンドルを指定してください。
+
+```sh
+BUILD_CA_FILE=/etc/ssl/cert.pem docker compose up -d
+# 毎回指定したくない場合は .env に書く
+echo 'BUILD_CA_FILE=/etc/ssl/cert.pem' >> .env
+```
+
+Homebrew の `ca-certificates` を使う場合は
+`/opt/homebrew/etc/ca-certificates/cert.pem` も指定できます。
+社内プロキシ等の独自CAが必要な場合は、そのCAを含むバンドルファイルを指定してください。
+
 ## 実装済み
 
 - アプリ登録・切り替え、ケース追加／編集／無効化／再有効化
