@@ -1,7 +1,7 @@
-# Android Test ReportPortal 
+# Android Test Report Portal
 
 Androidアプリの手動・自動テスト結果を記録するローカルWebアプリのベース実装です。
-React + TypeScript / Go + Echo / PostgreSQL 17。要件原本は [docs/requirements.md](docs/requirements.md)。
+React + TypeScript / Go + Echo / PostgreSQL 17。要件定義は [docs/requirements.md](docs/requirements.md)、ER図・DB設計は [docs/er-diagram.md](docs/er-diagram.md)。
 
 ## 起動
 

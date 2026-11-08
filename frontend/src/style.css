@@ -346,26 +346,39 @@ td .case-key {
 }
 .badge {
   display: inline-block;
-  padding: 5px 10px;
-  border-radius: 5px;
-  font-size: 11px;
-  font-weight: 550;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .badge.passed {
-  background: #e8f4ed;
-  color: #267a52;
+  background: #267a52;
+  color: #fff;
 }
 .badge.failed {
-  background: #fbecea;
-  color: #bc5148;
+  background: #c0392b;
+  color: #fff;
 }
 .badge.blocked {
-  background: #fcf4e4;
-  color: #9c7733;
+  background: #d99a1e;
+  color: #fff;
 }
 .badge.not_run {
   background: #eff2f0;
   color: #7b8b80;
+}
+.result {
+  border-left: 6px solid #c9d2cc;
+}
+.result.passed {
+  border-left-color: #267a52;
+}
+.result.failed {
+  border-left-color: #c0392b;
+}
+.result.blocked {
+  border-left-color: #d99a1e;
 }
 .row-actions {
   display: flex;
@@ -698,4 +711,18 @@ summary {
   .alert {
     margin: 15px;
   }
+}
+
+.steps-cell {
+  min-width: 220px;
+  max-width: 360px;
+}
+.steps {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

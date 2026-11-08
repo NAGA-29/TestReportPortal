@@ -42,8 +42,16 @@ async function api(path: string, method = "GET", data?: unknown) {
   }
   return r.json();
 }
+const icons: Record<string, string> = {
+  passed: "✓",
+  failed: "✕",
+  blocked: "⚠",
+  not_run: "–",
+};
 function Badge({ status }: { status: string }) {
-  return <span className={"badge " + status}>{statuses[status]}</span>;
+  return <span className={"badge " + status}>
+      {icons[status]} {statuses[status]}
+    </span>;
 }
 const field = (
   key: string,
@@ -474,6 +482,7 @@ function App() {
                       <thead>
                         <tr>
                           <th>テスト項目</th>
+                          <th>手順</th>
                           <th>カテゴリ / 方法</th>
                           <th>最新の結果</th>
                           <th>前回の結果</th>
@@ -504,6 +513,15 @@ function App() {
                               >
                                 {c.title}
                               </button>
+                            </td>
+                            <td className="steps-cell">
+                              {c.steps ? (
+                                <p className="steps" title={c.steps}>
+                                  {c.steps}
+                                </p>
+                              ) : (
+                                <span className="muted">—</span>
+                              )}
                             </td>
                             <td>
                               {c.category || "—"}
@@ -667,7 +685,7 @@ function App() {
                       </p>
                       <p>{run.notes}</p>
                       {run.results.map((r: Row) => (
-                        <article className="result" key={r.id}>
+                        <article className={"result " + r.status} key={r.id}>
                           <div className="result-header">
                             <div>
                               <small className="case-key">
