@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
+import { Docs } from "./Docs";
 type Row = Record<string, any>;
 type Field = {
   key: string;
@@ -70,9 +71,7 @@ function AttachmentItem({ a }: { a: Row }) {
     type === "application/xml";
   return (
     <div className="file-attachment">
-      {type === "video/mp4" && (
-        <video src={url} controls preload="metadata" />
-      )}
+      {type === "video/mp4" && <video src={url} controls preload="metadata" />}
       <a href={url} download={a.file_name}>
         ⬇ {a.file_name}
       </a>
@@ -89,8 +88,9 @@ function AttachmentItem({ a }: { a: Row }) {
               if (!r.ok) throw Error(`HTTP ${r.status}`);
               // Decode with the stored charset (e.g. UTF-16 logs); r.text() always assumes UTF-8.
               const charset =
-                /charset=([^;]+)/i.exec(r.headers.get("Content-Type") || "")?.[1] ||
-                "utf-8";
+                /charset=([^;]+)/i.exec(
+                  r.headers.get("Content-Type") || "",
+                )?.[1] || "utf-8";
               let decoder: TextDecoder;
               try {
                 decoder = new TextDecoder(charset.trim());
@@ -100,7 +100,8 @@ function AttachmentItem({ a }: { a: Row }) {
               const text = decoder.decode(await r.arrayBuffer());
               setPreview(
                 text.length > previewLimit
-                  ? text.slice(0, previewLimit) + "\n…（以降はダウンロードして確認）"
+                  ? text.slice(0, previewLimit) +
+                      "\n…（以降はダウンロードして確認）"
                   : text,
               );
               setError("");
@@ -145,9 +146,11 @@ function Steps({ text }: { text: string }) {
   );
 }
 function Badge({ status }: { status: string }) {
-  return <span className={"badge " + status}>
+  return (
+    <span className={"badge " + status}>
       {icons[status]} {statuses[status]}
-    </span>;
+    </span>
+  );
 }
 const field = (
   key: string,
@@ -560,11 +563,7 @@ function App() {
           options: methods,
         },
         field("runner_name", "実行ツール（Maestro など）"),
-        field(
-          "app_version",
-          "アプリのバージョン",
-          current?.current_version,
-        ),
+        field("app_version", "アプリのバージョン", current?.current_version),
         field("device_name", "端末名"),
         field("android_version", "Android版"),
         field("executed_by", "実行者"),
@@ -674,6 +673,12 @@ function App() {
           >
             ◷ 実行履歴 <span>{runs.length}</span>
           </button>
+          <button
+            className={tab === "docs" ? "selected" : ""}
+            onClick={() => Tab("docs")}
+          >
+            ? ドキュメント
+          </button>
         </nav>
         <div className="side-footer">
           ローカルワークスペース
@@ -685,7 +690,7 @@ function App() {
         <header>
           <span>
             ワークスペース <span className="divider">/</span>{" "}
-            {current?.name || "はじめに"}
+            {tab === "docs" ? "ドキュメント" : current?.name || "はじめに"}
           </span>
           <span className="local">● ローカル</span>
         </header>
@@ -696,452 +701,471 @@ function App() {
           </div>
         )}
         <section className="content">
-          <div className="heading">
-            <div>
-              <p className="eyebrow">TEST MANAGEMENT</p>
-              <h1>{current?.name || "テスト台帳へようこそ"}</h1>
-              {(current?.package_name || current?.current_version) && (
-                <p className="package-name">
-                  {[
-                    current.package_name,
-                    current.current_version && `v${current.current_version}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              )}
-              <p className="muted">
-                {current?.description ||
-                  "テスト結果と証跡をまとめて、品質の変化を追いかける。"}
-              </p>
-            </div>
-            {current && (
-              <div className="heading-actions">
-                <button disabled={busy} onClick={() => editApp(current)}>
-                  アプリ情報を編集
-                </button>
-                <button
-                  className="primary"
-                  disabled={busy || !active.length}
-                  onClick={addRun}
-                >
-                  ＋ テスト実行を作成
-                </button>
-              </div>
-            )}
-          </div>
-          {!appID ? (
-            <div className="empty">
-              <h2>最初のアプリを登録しましょう</h2>
-              <p>
-                左の「アプリを追加」から、テスト対象のアプリを登録できます。
-              </p>
-            </div>
+          {tab === "docs" ? (
+            <Docs />
           ) : (
             <>
-              <div className="stats">
-                {Object.entries(statuses).map(([k, v]) => (
-                  <div className={"stat " + k} key={k}>
-                    <span>{v}</span>
-                    <strong>
-                      {
-                        active.filter(
-                          (c) =>
-                            (c.recent_results[0]?.status || "not_run") === k,
-                        ).length
-                      }
-                      <small>件</small>
-                    </strong>
-                    <div className="stat-line" />
-                  </div>
-                ))}
-              </div>
-              <div className="section-title">
+              <div className="heading">
                 <div>
-                  <h2>{tab === "cases" ? "テスト一覧" : "実行履歴"}</h2>
+                  <p className="eyebrow">TEST MANAGEMENT</p>
+                  <h1>{current?.name || "テスト台帳へようこそ"}</h1>
+                  {(current?.package_name || current?.current_version) && (
+                    <p className="package-name">
+                      {[
+                        current.package_name,
+                        current.current_version &&
+                          `v${current.current_version}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  )}
                   <p className="muted">
-                    {tab === "cases"
-                      ? "各項目の直近2回の結果を比較できます。"
-                      : "実行回を選んで、結果・端末情報・添付を確認できます。"}
+                    {current?.description ||
+                      "テスト結果と証跡をまとめて、品質の変化を追いかける。"}
                   </p>
                 </div>
-                <div className="section-actions">
-                  <button
-                    disabled={busy || !appID}
-                    onClick={() =>
-                      void act(() => {
-                        const q = new URLSearchParams({ tz: browserTZ });
-                        if (tab === "cases")
-                          q.set("include_inactive", String(inactive));
-                        else if (date) {
-                          q.set("from", date);
-                          q.set("to", date);
-                        }
-                        return downloadCSV(
-                          `/apps/${appID}/${tab === "cases" ? "cases" : "runs"}/export?${q}`,
-                        );
-                      })
-                    }
-                  >
-                    エクスポート
-                  </button>
-                  <button
-                    disabled={busy || !appID}
-                    onClick={() =>
-                      Importing(tab === "cases" ? "cases" : "runs")
-                    }
-                  >
-                    インポート
-                  </button>
-                  {tab === "cases" && (
-                    <button disabled={busy} onClick={() => editCase()}>
-                      ＋ テスト項目を追加
+                {current && (
+                  <div className="heading-actions">
+                    <button disabled={busy} onClick={() => editApp(current)}>
+                      アプリ情報を編集
                     </button>
-                  )}
-                </div>
-              </div>
-              {tab === "cases" ? (
-                <>
-                  <div className="filters">
-                    <input
-                      aria-label="テスト項目を検索"
-                      placeholder="識別子・テスト項目・カテゴリを検索"
-                      value={search}
-                      onChange={(e) => Search(e.target.value)}
-                    />
-                    <select
-                      aria-label="結果で絞り込み"
-                      value={status}
-                      onChange={(e) => Status(e.target.value)}
+                    <button
+                      className="primary"
+                      disabled={busy || !active.length}
+                      onClick={addRun}
                     >
-                      <option value="">すべての結果</option>
-                      {Object.entries(statuses).map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      aria-label="方法で絞り込み"
-                      value={method}
-                      onChange={(e) => Method(e.target.value)}
-                    >
-                      <option value="">すべての方法</option>
-                      {methods.map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
-                    <label className="check">
-                      <input
-                        type="checkbox"
-                        checked={inactive}
-                        onChange={(e) => Inactive(e.target.checked)}
-                      />
-                      無効な項目も表示
-                    </label>
+                      ＋ テスト実行を作成
+                    </button>
                   </div>
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>テスト項目</th>
-                          <th>手順</th>
-                          <th>カテゴリ / 方法</th>
-                          <th>最新の結果</th>
-                          <th>前回の結果</th>
-                          <th>操作</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visible.map((c) => (
-                          <tr
-                            key={c.id}
-                            className={!c.is_active ? "inactive" : ""}
-                          >
-                            <td>
-                              <small className="case-key">
-                                {c.case_key}
-                                {!c.is_active ? " · 無効" : ""}
-                              </small>
-                              <button
-                                className="text title"
-                                onClick={() =>
-                                  void act(async () =>
-                                    Past({
-                                      title: c.title,
-                                      rows: await api(`/cases/${c.id}/results`),
-                                    }),
-                                  )
-                                }
+                )}
+              </div>
+              {!appID ? (
+                <div className="empty">
+                  <h2>最初のアプリを登録しましょう</h2>
+                  <p>
+                    左の「アプリを追加」から、テスト対象のアプリを登録できます。
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="stats">
+                    {Object.entries(statuses).map(([k, v]) => (
+                      <div className={"stat " + k} key={k}>
+                        <span>{v}</span>
+                        <strong>
+                          {
+                            active.filter(
+                              (c) =>
+                                (c.recent_results[0]?.status || "not_run") ===
+                                k,
+                            ).length
+                          }
+                          <small>件</small>
+                        </strong>
+                        <div className="stat-line" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="section-title">
+                    <div>
+                      <h2>{tab === "cases" ? "テスト一覧" : "実行履歴"}</h2>
+                      <p className="muted">
+                        {tab === "cases"
+                          ? "各項目の直近2回の結果を比較できます。"
+                          : "実行回を選んで、結果・端末情報・添付を確認できます。"}
+                      </p>
+                    </div>
+                    <div className="section-actions">
+                      <button
+                        disabled={busy || !appID}
+                        onClick={() =>
+                          void act(() => {
+                            const q = new URLSearchParams({ tz: browserTZ });
+                            if (tab === "cases")
+                              q.set("include_inactive", String(inactive));
+                            else if (date) {
+                              q.set("from", date);
+                              q.set("to", date);
+                            }
+                            return downloadCSV(
+                              `/apps/${appID}/${tab === "cases" ? "cases" : "runs"}/export?${q}`,
+                            );
+                          })
+                        }
+                      >
+                        エクスポート
+                      </button>
+                      <button
+                        disabled={busy || !appID}
+                        onClick={() =>
+                          Importing(tab === "cases" ? "cases" : "runs")
+                        }
+                      >
+                        インポート
+                      </button>
+                      {tab === "cases" && (
+                        <button disabled={busy} onClick={() => editCase()}>
+                          ＋ テスト項目を追加
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {tab === "cases" ? (
+                    <>
+                      <div className="filters">
+                        <input
+                          aria-label="テスト項目を検索"
+                          placeholder="識別子・テスト項目・カテゴリを検索"
+                          value={search}
+                          onChange={(e) => Search(e.target.value)}
+                        />
+                        <select
+                          aria-label="結果で絞り込み"
+                          value={status}
+                          onChange={(e) => Status(e.target.value)}
+                        >
+                          <option value="">すべての結果</option>
+                          {Object.entries(statuses).map(([k, v]) => (
+                            <option key={k} value={k}>
+                              {v}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          aria-label="方法で絞り込み"
+                          value={method}
+                          onChange={(e) => Method(e.target.value)}
+                        >
+                          <option value="">すべての方法</option>
+                          {methods.map(([k, v]) => (
+                            <option key={k} value={k}>
+                              {v}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="check">
+                          <input
+                            type="checkbox"
+                            checked={inactive}
+                            onChange={(e) => Inactive(e.target.checked)}
+                          />
+                          無効な項目も表示
+                        </label>
+                      </div>
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>テスト項目</th>
+                              <th>手順</th>
+                              <th>カテゴリ / 方法</th>
+                              <th>最新の結果</th>
+                              <th>前回の結果</th>
+                              <th>操作</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {visible.map((c) => (
+                              <tr
+                                key={c.id}
+                                className={!c.is_active ? "inactive" : ""}
                               >
-                                {c.title}
-                              </button>
-                            </td>
-                            <td className="steps-cell">
-                              {c.steps ? (
-                                <Steps text={c.steps} />
-                              ) : (
-                                <span className="muted">—</span>
-                              )}
-                            </td>
-                            <td>
-                              {c.category || "—"}
-                              <small>
-                                {c.test_type === "both"
-                                  ? "手動・自動"
-                                  : c.test_type === "manual"
-                                    ? "手動"
-                                    : "自動"}
-                              </small>
-                            </td>
-                            {[0, 1].map((i) => (
-                              <td key={i}>
-                                {c.recent_results[i] ? (
+                                <td>
+                                  <small className="case-key">
+                                    {c.case_key}
+                                    {!c.is_active ? " · 無効" : ""}
+                                  </small>
                                   <button
-                                    className="text"
+                                    className="text title"
                                     onClick={() =>
-                                      void act(() =>
-                                        openRun(
-                                          c.recent_results[i].test_run_id,
-                                        ),
+                                      void act(async () =>
+                                        Past({
+                                          title: c.title,
+                                          rows: await api(
+                                            `/cases/${c.id}/results`,
+                                          ),
+                                        }),
                                       )
                                     }
                                   >
-                                    <Badge
-                                      status={c.recent_results[i].status}
-                                    />
-                                    <small>
-                                      {stamp(c.recent_results[i].started_at)}
-                                    </small>
+                                    {c.title}
                                   </button>
-                                ) : (
-                                  <span className="muted">—</span>
-                                )}
-                              </td>
+                                </td>
+                                <td className="steps-cell">
+                                  {c.steps ? (
+                                    <Steps text={c.steps} />
+                                  ) : (
+                                    <span className="muted">—</span>
+                                  )}
+                                </td>
+                                <td>
+                                  {c.category || "—"}
+                                  <small>
+                                    {c.test_type === "both"
+                                      ? "手動・自動"
+                                      : c.test_type === "manual"
+                                        ? "手動"
+                                        : "自動"}
+                                  </small>
+                                </td>
+                                {[0, 1].map((i) => (
+                                  <td key={i}>
+                                    {c.recent_results[i] ? (
+                                      <button
+                                        className="text"
+                                        onClick={() =>
+                                          void act(() =>
+                                            openRun(
+                                              c.recent_results[i].test_run_id,
+                                            ),
+                                          )
+                                        }
+                                      >
+                                        <Badge
+                                          status={c.recent_results[i].status}
+                                        />
+                                        <small>
+                                          {stamp(
+                                            c.recent_results[i].started_at,
+                                          )}
+                                        </small>
+                                      </button>
+                                    ) : (
+                                      <span className="muted">—</span>
+                                    )}
+                                  </td>
+                                ))}
+                                <td>
+                                  <div className="row-actions">
+                                    <button onClick={() => editCase(c)}>
+                                      編集
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        void act(() =>
+                                          showHistory("cases", c.id, c.title),
+                                        )
+                                      }
+                                    >
+                                      履歴
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        Modal({
+                                          title: c.is_active
+                                            ? "テスト項目を無効化"
+                                            : "テスト項目を有効化",
+                                          fields: [
+                                            field("changed_by", "変更者"),
+                                            field("reason", "理由"),
+                                          ],
+                                          submit: async (v) => {
+                                            await api(`/cases/${c.id}`, "PUT", {
+                                              ...casePayload(c),
+                                              ...v,
+                                              is_active: !c.is_active,
+                                            });
+                                            await refresh();
+                                          },
+                                        })
+                                      }
+                                    >
+                                      {c.is_active ? "無効化" : "有効化"}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
                             ))}
-                            <td>
+                          </tbody>
+                        </table>
+                        {!visible.length && (
+                          <div className="empty">
+                            <h3>
+                              {cases.length
+                                ? "該当する項目がありません"
+                                : "テスト項目はまだありません"}
+                            </h3>
+                            <p>
+                              テスト項目を追加すると、実行結果を記録できます。
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="filters">
+                        <label>
+                          実行日{" "}
+                          <input
+                            type="date"
+                            value={date}
+                            onChange={(e) => DateFilter(e.target.value)}
+                          />
+                        </label>
+                        <select
+                          aria-label="実行方法で絞り込み"
+                          value={method}
+                          onChange={(e) => Method(e.target.value)}
+                        >
+                          <option value="">すべての方法</option>
+                          {methods.map(([k, v]) => (
+                            <option key={k} value={k}>
+                              {v}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="run-grid">
+                        {runs
+                          .filter(
+                            (r) =>
+                              (!method || r.run_type === method) &&
+                              (!date ||
+                                new Date(r.started_at).toLocaleDateString(
+                                  "sv-SE",
+                                ) === date),
+                          )
+                          .map((r) => (
+                            <button
+                              className={
+                                "run-card " + (run?.id === r.id ? "chosen" : "")
+                              }
+                              key={r.id}
+                              onClick={() => void act(() => openRun(r.id))}
+                            >
+                              <strong>
+                                実行 #{r.id}{" "}
+                                <span className="pill">
+                                  {r.run_type === "manual" ? "手動" : "自動"}
+                                </span>
+                              </strong>
+                              <span>{stamp(r.started_at)}</span>
+                              <small>
+                                {r.app_version || "版未設定"} ·{" "}
+                                {r.device_name || "端末未設定"} ·{" "}
+                                {r.result_count}
+                                項目
+                              </small>
+                            </button>
+                          ))}
+                      </div>
+                      {!runs.length && (
+                        <div className="empty">実行履歴はまだありません。</div>
+                      )}
+                      {run && (
+                        <section className="run-detail">
+                          <h2>実行 #{run.id}</h2>
+                          <p className="muted">
+                            {stamp(run.started_at)} / 実行者：
+                            {run.executed_by || "未設定"} /{" "}
+                            {run.device_name || "端末未設定"} / Android{" "}
+                            {run.android_version || "—"} / アプリ{" "}
+                            {run.app_version || "—"}
+                          </p>
+                          <p>{run.notes}</p>
+                          {run.results.map((r: Row) => (
+                            <article
+                              className={"result " + r.status}
+                              key={r.id}
+                            >
+                              <div className="result-header">
+                                <div>
+                                  <small className="case-key">
+                                    {r.case_snapshot.case_key}
+                                  </small>
+                                  <h3>{r.case_snapshot.title}</h3>
+                                </div>
+                                <Badge status={r.status} />
+                              </div>
+                              <div className="instructions">
+                                {r.case_snapshot.precondition && (
+                                  <div>
+                                    <b>事前条件</b>
+                                    <p>{r.case_snapshot.precondition}</p>
+                                  </div>
+                                )}
+                                <div>
+                                  <b>手順（実行時）</b>
+                                  <p>{r.case_snapshot.steps}</p>
+                                </div>
+                                <div>
+                                  <b>期待結果（実行時）</b>
+                                  <p>{r.case_snapshot.expected_result}</p>
+                                </div>
+                              </div>
+                              {r.actual_result && (
+                                <p>
+                                  <b>実際の結果：</b>
+                                  {r.actual_result}
+                                </p>
+                              )}
+                              {r.comment && (
+                                <p>
+                                  <b>コメント：</b>
+                                  {r.comment}
+                                </p>
+                              )}
+                              <div className="attachments">
+                                {r.attachments.map((a: Row) => (
+                                  <AttachmentItem key={a.id} a={a} />
+                                ))}
+                              </div>
                               <div className="row-actions">
-                                <button onClick={() => editCase(c)}>
-                                  編集
+                                <button onClick={() => editResult(r)}>
+                                  結果を記録・編集
                                 </button>
                                 <button
                                   onClick={() =>
                                     void act(() =>
-                                      showHistory("cases", c.id, c.title),
+                                      showHistory(
+                                        "results",
+                                        r.id,
+                                        r.case_snapshot.title,
+                                      ),
                                     )
                                   }
                                 >
-                                  履歴
+                                  編集履歴・復元
                                 </button>
-                                <button
-                                  onClick={() =>
-                                    Modal({
-                                      title: c.is_active
-                                        ? "テスト項目を無効化"
-                                        : "テスト項目を有効化",
-                                      fields: [
-                                        field("changed_by", "変更者"),
-                                        field("reason", "理由"),
-                                      ],
-                                      submit: async (v) => {
-                                        await api(`/cases/${c.id}`, "PUT", {
-                                          ...casePayload(c),
-                                          ...v,
-                                          is_active: !c.is_active,
-                                        });
-                                        await refresh();
-                                      },
-                                    })
-                                  }
-                                >
-                                  {c.is_active ? "無効化" : "有効化"}
-                                </button>
+                                <label className="upload">
+                                  ＋ ファイルを添付
+                                  <input
+                                    type="file"
+                                    accept={attachmentAccept}
+                                    disabled={busy}
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      e.target.value = "";
+                                      if (!f) return;
+                                      void act(async () => {
+                                        const data = new FormData();
+                                        data.append("file", f);
+                                        await api(
+                                          `/results/${r.id}/attachments`,
+                                          "POST",
+                                          data,
+                                        );
+                                        await openRun(run.id);
+                                      });
+                                    }}
+                                  />
+                                </label>
                               </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {!visible.length && (
-                      <div className="empty">
-                        <h3>
-                          {cases.length
-                            ? "該当する項目がありません"
-                            : "テスト項目はまだありません"}
-                        </h3>
-                        <p>テスト項目を追加すると、実行結果を記録できます。</p>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="filters">
-                    <label>
-                      実行日{" "}
-                      <input
-                        type="date"
-                        value={date}
-                        onChange={(e) => DateFilter(e.target.value)}
-                      />
-                    </label>
-                    <select
-                      aria-label="実行方法で絞り込み"
-                      value={method}
-                      onChange={(e) => Method(e.target.value)}
-                    >
-                      <option value="">すべての方法</option>
-                      {methods.map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="run-grid">
-                    {runs
-                      .filter(
-                        (r) =>
-                          (!method || r.run_type === method) &&
-                          (!date ||
-                            new Date(r.started_at).toLocaleDateString(
-                              "sv-SE",
-                            ) === date),
-                      )
-                      .map((r) => (
-                        <button
-                          className={
-                            "run-card " + (run?.id === r.id ? "chosen" : "")
-                          }
-                          key={r.id}
-                          onClick={() => void act(() => openRun(r.id))}
-                        >
-                          <strong>
-                            実行 #{r.id}{" "}
-                            <span className="pill">
-                              {r.run_type === "manual" ? "手動" : "自動"}
-                            </span>
-                          </strong>
-                          <span>{stamp(r.started_at)}</span>
-                          <small>
-                            {r.app_version || "版未設定"} ·{" "}
-                            {r.device_name || "端末未設定"} · {r.result_count}
-                            項目
-                          </small>
-                        </button>
-                      ))}
-                  </div>
-                  {!runs.length && (
-                    <div className="empty">実行履歴はまだありません。</div>
+                            </article>
+                          ))}
+                        </section>
+                      )}
+                    </>
                   )}
-                  {run && (
-                    <section className="run-detail">
-                      <h2>実行 #{run.id}</h2>
-                      <p className="muted">
-                        {stamp(run.started_at)} / 実行者：
-                        {run.executed_by || "未設定"} /{" "}
-                        {run.device_name || "端末未設定"} / Android{" "}
-                        {run.android_version || "—"} / アプリ{" "}
-                        {run.app_version || "—"}
-                      </p>
-                      <p>{run.notes}</p>
-                      {run.results.map((r: Row) => (
-                        <article className={"result " + r.status} key={r.id}>
-                          <div className="result-header">
-                            <div>
-                              <small className="case-key">
-                                {r.case_snapshot.case_key}
-                              </small>
-                              <h3>{r.case_snapshot.title}</h3>
-                            </div>
-                            <Badge status={r.status} />
-                          </div>
-                          <div className="instructions">
-                            {r.case_snapshot.precondition && (
-                              <div>
-                                <b>事前条件</b>
-                                <p>{r.case_snapshot.precondition}</p>
-                              </div>
-                            )}
-                            <div>
-                              <b>手順（実行時）</b>
-                              <p>{r.case_snapshot.steps}</p>
-                            </div>
-                            <div>
-                              <b>期待結果（実行時）</b>
-                              <p>{r.case_snapshot.expected_result}</p>
-                            </div>
-                          </div>
-                          {r.actual_result && (
-                            <p>
-                              <b>実際の結果：</b>
-                              {r.actual_result}
-                            </p>
-                          )}
-                          {r.comment && (
-                            <p>
-                              <b>コメント：</b>
-                              {r.comment}
-                            </p>
-                          )}
-                          <div className="attachments">
-                            {r.attachments.map((a: Row) => (
-                              <AttachmentItem key={a.id} a={a} />
-                            ))}
-                          </div>
-                          <div className="row-actions">
-                            <button onClick={() => editResult(r)}>
-                              結果を記録・編集
-                            </button>
-                            <button
-                              onClick={() =>
-                                void act(() =>
-                                  showHistory(
-                                    "results",
-                                    r.id,
-                                    r.case_snapshot.title,
-                                  ),
-                                )
-                              }
-                            >
-                              編集履歴・復元
-                            </button>
-                            <label className="upload">
-                              ＋ ファイルを添付
-                              <input
-                                type="file"
-                                accept={attachmentAccept}
-                                disabled={busy}
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  e.target.value = "";
-                                  if (!f) return;
-                                  void act(async () => {
-                                    const data = new FormData();
-                                    data.append("file", f);
-                                    await api(
-                                      `/results/${r.id}/attachments`,
-                                      "POST",
-                                      data,
-                                    );
-                                    await openRun(run.id);
-                                  });
-                                }}
-                              />
-                            </label>
-                          </div>
-                        </article>
-                      ))}
-                    </section>
-                  )}
+                  <footer>
+                    アクティブなテスト項目 {active.length} 件 · テスト実行{" "}
+                    {runs.length} 回{" "}
+                    <span>直近結果は実行開始日時の順で表示</span>
+                  </footer>
                 </>
               )}
-              <footer>
-                アクティブなテスト項目 {active.length} 件 · テスト実行{" "}
-                {runs.length} 回 <span>直近結果は実行開始日時の順で表示</span>
-              </footer>
             </>
           )}
         </section>
