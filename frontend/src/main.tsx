@@ -245,7 +245,7 @@ function ImportDialog({
         aria-labelledby="import-title"
         className="dialog wide"
       >
-        <h2 id="import-title">{importLabels[kind]}のCSV取り込み</h2>
+        <h2 id="import-title">{importLabels[kind]}のインポート</h2>
         <p className="muted">
           UTF-8のCSVのみ取り込めます（Excelでは「CSV
           UTF-8（コンマ区切り）」で保存）。日時はこのブラウザーのタイムゾーン（
@@ -783,7 +783,7 @@ function App() {
                       })
                     }
                   >
-                    CSV出力
+                    エクスポート
                   </button>
                   <button
                     disabled={busy || !appID}
@@ -791,7 +791,7 @@ function App() {
                       Importing(tab === "cases" ? "cases" : "runs")
                     }
                   >
-                    CSV取り込み
+                    インポート
                   </button>
                   {tab === "cases" && (
                     <button disabled={busy} onClick={() => editCase()}>

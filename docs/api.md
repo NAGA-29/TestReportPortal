@@ -23,10 +23,10 @@ JSON入力は未知の項目と複数JSONを拒否します。
 | PUT / PATCH | /runs/:run/results/by-key/:case_key | 実行回内の結果をケースキーで更新（PATCHは部分更新） |
 | POST | /runs/:run/results/by-key/:case_key/attachments | 実行回内の結果にケースキーで添付 |
 | GET | /attachments/:id | 添付本体（画像はinline、それ以外はダウンロード） |
-| GET | /apps/:app/cases/export | テスト項目のCSV出力 |
-| POST | /apps/:app/cases/import | テスト項目のCSV取り込み（multipart） |
-| GET | /apps/:app/runs/export | 実行履歴のCSV出力（1行1結果） |
-| POST | /apps/:app/runs/import | 実行履歴のCSV取り込み（multipart） |
+| GET | /apps/:app/cases/export | テスト項目のCSVエクスポート |
+| POST | /apps/:app/cases/import | テスト項目のCSVインポート（multipart） |
+| GET | /apps/:app/runs/export | 実行履歴のCSVエクスポート（1行1結果） |
+| POST | /apps/:app/runs/import | 実行履歴のCSVインポート（multipart） |
 
 作成例（IDは実際の応答値を使う）：
 
@@ -99,7 +99,7 @@ curl -X PATCH -H 'Content-Type: application/json' -d '{"status":"failed","commen
 curl -F file=@screenshot.png http://127.0.0.1:3000/api/runs/1/results/by-key/LOGIN-001/attachments
 ```
 
-## CSV出力・取り込み
+## CSVエクスポート・インポート
 
 方式は [ADR-0001](adr/0001-csv-import-export.md)、列の一覧と受け入れ基準は [SOW-0001](sow/0001-import-export.md)。
 

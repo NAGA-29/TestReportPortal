@@ -86,7 +86,7 @@ const { chromium } = require("playwright");
     path = require("path");
   let [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "CSV出力" }).click(),
+    page.getByRole("button", { name: "エクスポート" }).click(),
   ]);
   if (!/_テスト項目_\d{8}_\d{6}\.csv$/.test(download.suggestedFilename()))
     throw Error("Unexpected file name " + download.suggestedFilename());
@@ -99,7 +99,7 @@ const { chromium } = require("playwright");
     edited,
     csv.replace("ログイン画面が表示される", "ログイン画面が表示される（CSV）"),
   );
-  await page.getByRole("button", { name: "CSV取り込み" }).click();
+  await page.getByRole("button", { name: "インポート" }).click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("CSVファイル").setInputFiles(edited);
   await dialog.getByLabel("変更者").fill("UI検証");
@@ -116,7 +116,7 @@ const { chromium } = require("playwright");
   await page.getByRole("button", { name: /実行履歴/ }).click();
   [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "CSV出力" }).click(),
+    page.getByRole("button", { name: "エクスポート" }).click(),
   ]);
   if (!/_実行履歴_\d{8}_\d{6}\.csv$/.test(download.suggestedFilename()))
     throw Error("Unexpected file name " + download.suggestedFilename());
