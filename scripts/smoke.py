@@ -26,8 +26,10 @@ class Workflow(unittest.TestCase):
         self.assertEqual(caught.exception.code,403)
         app=call('/apps','POST',{'name':'Smoke '+uuid.uuid4().hex[:8]},201)
         path=f"/apps/{app['id']}"
-        renamed=call(path,'PUT',{'name':' Renamed ','package_name':'com.example.smoke','current_version':' 2.1.0 ','description':'更新後'})
-        self.assertEqual((renamed['id'],renamed['name'],renamed['package_name'],renamed['current_version'],renamed['description']),(app['id'],'Renamed','com.example.smoke','2.1.0','更新後'))
+        renamed=call(path,'PUT',{'name':' Renamed ','package_name':'com.example.smoke','description':'更新後'})
+        self.assertEqual((renamed['id'],renamed['name'],renamed['package_name'],renamed['description']),(app['id'],'Renamed','com.example.smoke','更新後'))
+        self.assertNotIn('current_version',renamed)
+        call(path,'PUT',{'name':'x','current_version':'1.0.0'},400)
         call(path,'PUT',{'name':' '},400)
         call(path,'PUT',{'name':'x','unknown':1},400)
         call('/apps/999999999','PUT',{'name':'x'},404)

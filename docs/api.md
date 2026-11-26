@@ -7,7 +7,7 @@ JSON入力は未知の項目と複数JSONを拒否します。
 |---|---|---|
 | GET | /health | DB接続を含むヘルスチェック |
 | GET / POST | /apps | アプリ一覧／作成 |
-| PUT | /apps/:app | アプリ名・パッケージ名・現在のバージョン・説明を更新（全入力項目指定） |
+| PUT | /apps/:app | アプリ名・パッケージ名・説明を更新（全入力項目指定） |
 | GET / POST | /apps/:app/cases | ケースと直近2回の結果／作成 |
 | PUT | /cases/:id | ケース定義を更新（全入力項目指定） |
 | GET / PUT | /apps/:app/cases/by-key/:case_key | ケースをキーで取得／upsert（なければ作成） |
@@ -27,7 +27,7 @@ JSON入力は未知の項目と複数JSONを拒否します。
 作成例（IDは実際の応答値を使う）：
 
 ```sh
-curl -H 'Content-Type: application/json' -d '{"name":"対象アプリ","package_name":"com.example.app","current_version":"1.0.0"}' http://127.0.0.1:3000/api/apps
+curl -H 'Content-Type: application/json' -d '{"name":"対象アプリ","package_name":"com.example.app"}' http://127.0.0.1:3000/api/apps
 curl -H 'Content-Type: application/json' -d '{"case_key":"LOGIN-001","category":"認証","title":"ログイン","steps":"ログインボタンを押す","expected_result":"ホーム画面が開く","test_type":"both"}' http://127.0.0.1:3000/api/apps/1/cases
 curl -H 'Content-Type: application/json' -d '{"run_type":"automated","runner_name":"Maestro","case_ids":[1],"app_version":"1.0.0","device_name":"Pixel","android_version":"15","executed_by":"CI","started_at":"2026-11-07T01:00:00Z"}' http://127.0.0.1:3000/api/apps/1/runs
 curl http://127.0.0.1:3000/api/runs/1

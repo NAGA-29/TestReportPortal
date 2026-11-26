@@ -263,7 +263,6 @@ function App() {
       fields: [
         field("name", "アプリ名", a?.name, true),
         field("package_name", "パッケージ名", a?.package_name),
-        field("current_version", "現在のバージョン（例: 1.2.0）", a?.current_version),
         field("description", "説明", a?.description, false, "textarea"),
       ],
       submit: async (v) => {
@@ -342,11 +341,7 @@ function App() {
           options: methods,
         },
         field("runner_name", "実行ツール（Maestro など）"),
-        field(
-          "app_version",
-          "アプリのバージョン",
-          current?.current_version,
-        ),
+        field("app_version", "アプリのバージョン"),
         field("device_name", "端末名"),
         field("android_version", "Android版"),
         field("executed_by", "実行者"),
@@ -482,15 +477,8 @@ function App() {
             <div>
               <p className="eyebrow">TEST MANAGEMENT</p>
               <h1>{current?.name || "テスト台帳へようこそ"}</h1>
-              {(current?.package_name || current?.current_version) && (
-                <p className="package-name">
-                  {[
-                    current.package_name,
-                    current.current_version && `v${current.current_version}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
+              {current?.package_name && (
+                <p className="package-name">{current.package_name}</p>
               )}
               <p className="muted">
                 {current?.description ||

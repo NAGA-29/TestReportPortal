@@ -41,7 +41,6 @@ type app struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
 	PackageName string `json:"package_name"`
-	Version     string `json:"current_version,omitempty"`
 	Description string `json:"description,omitempty"`
 	IsActive    bool   `json:"is_active"`
 }

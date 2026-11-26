@@ -116,7 +116,6 @@ func (s *server) routes(e *echo.Echo) {
 		var v struct {
 			Name        string `json:"name"`
 			Package     string `json:"package_name"`
-			Version     string `json:"current_version"`
 			Description string `json:"description"`
 		}
 		if err := decode(c, &v); err != nil {
@@ -125,7 +124,7 @@ func (s *server) routes(e *echo.Echo) {
 		if strings.TrimSpace(v.Name) == "" {
 			return echo.NewHTTPError(400, "アプリ名は必須です")
 		}
-		b, err := object(c.Request().Context(), s.db, "INSERT INTO apps(name,package_name,current_version,description) VALUES($1,$2,$3,$4) RETURNING to_jsonb(apps)", strings.TrimSpace(v.Name), v.Package, strings.TrimSpace(v.Version), v.Description)
+		b, err := object(c.Request().Context(), s.db, "INSERT INTO apps(name,package_name,description) VALUES($1,$2,$3) RETURNING to_jsonb(apps)", strings.TrimSpace(v.Name), v.Package, v.Description)
 		if err != nil {
 			return err
 		}

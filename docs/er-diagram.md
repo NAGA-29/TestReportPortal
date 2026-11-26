@@ -18,7 +18,6 @@ erDiagram
         bigint id PK
         text name
         text package_name
-        text current_version
         text description
         boolean is_active
     }
@@ -83,7 +82,6 @@ erDiagram
 - `id` (PK)
 - `name`
 - `package_name`（任意）
-- `current_version`（任意）— 現在のアプリバージョン。画面でテスト実行を作成するときに、`app_version` 入力欄の初期値として表示するだけに使う。API（`POST /apps/:app/runs`）で `app_version` を省略した場合は補完せず、空文字列を保存する。実行回ごとの版は `test_runs.app_version` に記録する
 - `description`（任意）
 - `created_at`, `updated_at`
 - `is_active`

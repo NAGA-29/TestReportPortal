@@ -27,7 +27,6 @@ const { chromium } = require("playwright");
   dialog = page.getByRole("dialog");
   const renamed = "UI検証（編集後） " + Date.now();
   await dialog.getByLabel("アプリ名").fill(renamed);
-  await dialog.getByLabel("現在のバージョン").fill("1.0.0");
   await dialog.getByLabel("説明").fill("編集UIの確認");
   await dialog.getByRole("button", { name: "保存する" }).click();
   await dialog.waitFor({ state: "detached" });
@@ -44,9 +43,7 @@ const { chromium } = require("playwright");
   await dialog.waitFor({ state: "detached" });
   await page.getByRole("button", { name: "＋ テスト実行を作成" }).click();
   dialog = page.getByRole("dialog");
-  const version = dialog.getByLabel("アプリのバージョン");
-  if ((await version.inputValue()) !== "1.0.0")
-    throw Error("アプリ情報のバージョンが実行作成フォームに引き継がれていません");
+  await dialog.getByLabel("アプリのバージョン").fill("1.0.0");
   await dialog.getByLabel("端末名").fill("Pixel 9");
   await dialog.getByLabel("実行者").fill("UI検証");
   await dialog.getByRole("button", { name: "保存する" }).click();
