@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -98,6 +99,19 @@ func (s *server) upsertCaseByKey(c echo.Context) error {
 	} else if err != nil {
 		return err
 	}
+	status, row, err := upsertCase(ctx, tx, app, key, v)
+	if err != nil {
+		return err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
+	return c.JSONBlob(status, row)
+}
+
+// upsertCase creates (201) or updates (200) the case app+key inside tx and records edit history.
+// An unchanged definition is returned as-is (200) without a history entry.
+func upsertCase(ctx context.Context, tx pgx.Tx, app int64, key string, v caseInput) (int, json.RawMessage, error) {
 	const lockCase = "SELECT to_jsonb(t) FROM test_cases t WHERE app_id=$1 AND case_key=$2 FOR UPDATE"
 	before, err := object(ctx, tx, lockCase, app, key)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -112,21 +126,18 @@ func (s *server) upsertCaseByKey(c echo.Context) error {
 			}
 			json.Unmarshal(after, &row)
 			if e = audit(ctx, tx, "cases", row.ID, "created", nil, after, v.ChangedBy, v.Reason); e != nil {
-				return e
+				return 0, nil, e
 			}
-			if e = tx.Commit(ctx); e != nil {
-				return e
-			}
-			return c.JSONBlob(201, after)
+			return 201, after, nil
 		}
 		if !errors.Is(e, pgx.ErrNoRows) {
-			return e
+			return 0, nil, e
 		}
 		// A concurrent request created the same key first; continue as an update of that row.
 		before, err = object(ctx, tx, lockCase, app, key)
 	}
 	if err != nil {
-		return err
+		return 0, nil, err
 	}
 	var old struct {
 		ID           int64  `json:"id"`
@@ -140,7 +151,7 @@ func (s *server) upsertCaseByKey(c echo.Context) error {
 		Active       bool   `json:"is_active"`
 	}
 	if err = json.Unmarshal(before, &old); err != nil {
-		return err
+		return 0, nil, err
 	}
 	active := old.Active
 	if v.Active != nil {
@@ -148,21 +159,18 @@ func (s *server) upsertCaseByKey(c echo.Context) error {
 	}
 	if old.Category == v.Category && old.Title == v.Title && old.Precondition == v.Precondition && old.Steps == v.Steps &&
 		old.Expected == v.Expected && old.TestType == v.TestType && old.SortOrder == v.SortOrder && old.Active == active {
-		return c.JSONBlob(200, before)
+		return 200, before, nil
 	}
 	after, err := object(ctx, tx, `UPDATE test_cases SET category=$2,title=$3,precondition=$4,steps=$5,expected_result=$6,test_type=$7,sort_order=$8,is_active=$9,updated_at=now() WHERE id=$1 RETURNING to_jsonb(test_cases)`, old.ID, v.Category, v.Title, v.Precondition, v.Steps, v.Expected, v.TestType, v.SortOrder, active)
 	if err != nil {
-		return err
+		return 0, nil, err
 	}
 	action := "updated"
 	if !active {
 		action = "deactivated"
 	}
 	if err = audit(ctx, tx, "cases", old.ID, action, before, after, v.ChangedBy, v.Reason); err != nil {
-		return err
+		return 0, nil, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return err
-	}
-	return c.JSONBlob(200, after)
+	return 200, after, nil
 }

@@ -140,6 +140,8 @@ func (s *server) routes(e *echo.Echo) {
 		return s.list(c, `SELECT t.*, coalesce((SELECT jsonb_agg(h ORDER BY h.started_at DESC,h.test_run_id DESC) FROM (SELECT r.id,r.status,r.test_run_id,u.started_at,u.run_type FROM test_results r JOIN test_runs u ON u.id=r.test_run_id WHERE r.test_case_id=t.id ORDER BY u.started_at DESC,u.id DESC LIMIT 2) h),'[]'::jsonb) AS recent_results FROM test_cases t WHERE app_id=$1 ORDER BY sort_order,id`, app)
 	})
 	e.POST("/api/apps/:app/cases", s.saveCase)
+	e.GET("/api/apps/:app/cases/export", s.exportCases)
+	e.POST("/api/apps/:app/cases/import", s.importCases)
 	e.PUT("/api/cases/:id", s.saveCase)
 	e.GET("/api/apps/:app/cases/by-key/:case_key", s.getCaseByKey)
 	e.PUT("/api/apps/:app/cases/by-key/:case_key", s.upsertCaseByKey)
@@ -151,6 +153,8 @@ func (s *server) routes(e *echo.Echo) {
 		return s.list(c, "SELECT u.*, (SELECT count(*) FROM test_results r WHERE r.test_run_id=u.id) AS result_count FROM test_runs u WHERE app_id=$1 ORDER BY started_at DESC,id DESC", app)
 	})
 	e.POST("/api/apps/:app/runs", s.createRun, s.idempotency)
+	e.GET("/api/apps/:app/runs/export", s.exportRuns)
+	e.POST("/api/apps/:app/runs/import", s.importRuns)
 	e.GET("/api/runs/:id", func(c echo.Context) error {
 		v, err := id(c, "id")
 		if err != nil {
@@ -430,17 +434,23 @@ func (s *server) updateResult(c echo.Context, key int64, v resultInput, history 
 	default:
 		return echo.NewHTTPError(400, "不正な結果ステータスです")
 	}
-	after, err := object(ctx, tx, "UPDATE test_results SET status=$2,actual_result=$3,comment=$4,updated_at=now() WHERE id=$1 RETURNING to_jsonb(test_results)", key, v.Status, v.Actual, v.Comment)
+	after, err := writeResult(ctx, tx, key, action, before, v)
 	if err != nil {
-		return err
-	}
-	if err = audit(ctx, tx, "results", key, action, before, after, v.ChangedBy, v.Reason); err != nil {
 		return err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return err
 	}
 	return c.JSONBlob(200, after)
+}
+
+// writeResult updates a locked result and appends its edit history.
+func writeResult(ctx context.Context, tx pgx.Tx, key int64, action string, before json.RawMessage, v resultInput) (json.RawMessage, error) {
+	after, err := object(ctx, tx, "UPDATE test_results SET status=$2,actual_result=$3,comment=$4,updated_at=now() WHERE id=$1 RETURNING to_jsonb(test_results)", key, v.Status, v.Actual, v.Comment)
+	if err != nil {
+		return nil, err
+	}
+	return after, audit(ctx, tx, "results", key, action, before, after, v.ChangedBy, v.Reason)
 }
 func (s *server) upload(c echo.Context) error {
 	key, err := id(c, "id")

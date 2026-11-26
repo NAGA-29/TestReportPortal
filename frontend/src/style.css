@@ -786,3 +786,37 @@ summary {
   font-size: 12px;
   color: #246d51;
 }
+.section-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.dialog > label {
+  display: block;
+  font-size: 12px;
+  margin: 16px 0;
+}
+.import-report {
+  font-size: 12px;
+  margin-top: 18px;
+}
+.import-report .check {
+  margin: 8px 0;
+}
+.import-rows {
+  max-height: 40vh;
+  overflow: auto;
+}
+.import-rows td {
+  vertical-align: top;
+  white-space: pre-wrap;
+}
+.import-error td {
+  color: #ad594f;
+}
+.dialog label.check > input {
+  display: inline-block;
+  width: auto;
+  margin: 0;
+}
