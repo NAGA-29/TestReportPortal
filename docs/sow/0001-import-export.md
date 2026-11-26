@@ -33,7 +33,7 @@
 共通事項（文字コード、日時、値の表記、数式インジェクション対策、ファイル名）は ADR-0001 に従う。
 
 ### 3.1 ファイル名
-`<アプリ名>_<種別>_<YYYYMMDD_HHMMSS>.csv`（日時は出力時刻、`EXPORT_TZ`、既定 `Asia/Tokyo`）
+`<アプリ名>_<種別>_<YYYYMMDD_HHMMSS>.csv`（日時は出力時刻。ブラウザーのタイムゾーン、省略時UTC）
 
 - 例: `サンプルアプリ_テスト項目_20261126_153000.csv`、`サンプルアプリ_実行履歴_20261126_153000.csv`
 - アプリ名中の使えない文字は `_` に置換。`Content-Disposition` に `filename*=UTF-8''...` と ASCII の代替名を併記する。
@@ -47,9 +47,9 @@
 | `precondition` | | ○ | |
 | `steps` | ○ | ○ | 改行はCSVのクォートで保持 |
 | `expected_result` | ○ | ○ | |
-| `test_type` | ○ | ○ | `manual`/`automated`/`both`、または 手動/自動/両対応 |
+| `test_type` | ○ | ○ | `manual`/`automated`/`both` |
 | `sort_order` | | ○ | 整数 |
-| `is_active` | | ○ | `true`/`false`（`1`/`0`、`有効`/`無効` も可） |
+| `is_active` | | ○ | `true`/`false` |
 | `updated_at` | | 無視 | 出力専用 |
 
 - 任意列がヘッダーにない場合、既存ケースは現在値を維持し、新規ケースは既定値（空、`0`、有効）とする。
@@ -59,14 +59,14 @@
 | 列 | 区分 | 取り込み | 備考 |
 |---|---|---|---|
 | `run_id` | 実行回 | 照合キー | 既存実行回のID。新規は `NEW-` で始まる任意ラベル（同じラベルの行が1実行回） |
-| `run_type` | 実行回 | 新規のみ | `manual`/`automated`（手動/自動も可）。既存実行回で値が異なればエラー |
+| `run_type` | 実行回 | 新規のみ | `manual`/`automated`。既存実行回で値が異なればエラー |
 | `started_at` | 実行回 | 新規のみ | 既存実行回で値が異なればエラー。新規で空なら取り込み時刻 |
 | `finished_at` | 実行回 | ○ | `started_at` 以降 |
 | `runner_name` / `executed_by` / `app_version` / `device_name` / `android_version` | 実行回 | ○ | |
 | `run_notes` / `run_summary` | 実行回 | ○ | `test_runs.notes` / `summary` |
 | `case_key` | 結果 | 照合キー | 既存実行回では、その実行回に含まれるケースのみ。新規では有効なケースのみ |
 | `case_title` | 結果 | 無視 | 出力専用（実行時スナップショットの名称） |
-| `status` | 結果 | ○ | `not_run`/`passed`/`failed`/`blocked`（未実施/成功/失敗/保留も可） |
+| `status` | 結果 | ○ | `not_run`/`passed`/`failed`/`blocked` |
 | `actual_result` / `comment` | 結果 | ○ | |
 | `attachment_count` / `result_updated_at` | 結果 | 無視 | 出力専用 |
 
@@ -79,10 +79,12 @@
 ### 3.4 API
 | メソッド・パス | 内容 |
 |---|---|
-| `GET /api/apps/:app/cases/export` | `?include_inactive=true\|false`（既定 true） |
-| `POST /api/apps/:app/cases/import` | multipart `file`、`changed_by`。`?dry_run=true` で事前確認 |
-| `GET /api/apps/:app/runs/export` | `?from=&to=`（開始日時、日付）、`?run_ids=1,2` |
-| `POST /api/apps/:app/runs/import` | multipart `file`、`changed_by`。`?dry_run=true` で事前確認 |
+| `GET /api/apps/:app/cases/export` | `?include_inactive=true\|false`（既定 true）、`?tz=` |
+| `POST /api/apps/:app/cases/import` | multipart `file`、`changed_by`。`?dry_run=true` で事前確認、`?tz=` |
+| `GET /api/apps/:app/runs/export` | `?from=&to=`（開始日、`tz` の日付）、`?run_ids=1,2`、`?tz=` |
+| `POST /api/apps/:app/runs/import` | multipart `file`、`changed_by`。`?dry_run=true` で事前確認、`?tz=` |
+
+`tz` はIANAタイムゾーン名（例 `Asia/Tokyo`）。画面はブラウザーの設定値を送る。省略時はUTC。
 
 取り込みの応答（事前確認・反映とも同じ形）:
 
@@ -110,7 +112,7 @@
 
 ### フェーズ1: テスト項目（F1, F2 と関連する F5, F6）
 1. `upsertCaseByKey` の処理を `upsertCase(ctx, tx, app, input)` に切り出し、既存APIとインポートで共用する。
-2. CSV共通処理（`backend/csvio.go`）: 文字コード判定（UTF-8/CP932）、BOM、ヘッダー解析、数式エスケープとその解除、日時・真偽値・表示名の変換、ファイル名生成。
+2. CSV共通処理（`backend/csvio.go`）: UTF-8検証、BOM、ヘッダー解析、数式エスケープとその解除、日時・真偽値・列挙値の検証、タイムゾーン、ファイル名生成。
 3. エクスポート・インポートAPI（`backend/cases_csv.go`）。
 4. 画面（出力ボタン、取り込みダイアログ）。
 5. Go単体テスト（`csvio_test.go`）、`scripts/smoke.py` の往復テスト、ブラウザー検証。
@@ -130,7 +132,9 @@ CSVと添付をまとめた一括取り込み・出力の方式を別ADRで決�
 ## 5. 受け入れ基準
 1. 出力したCSVをExcelで開いて文字化けせず、改行を含むセルが1セルとして表示される。
 2. 出力したCSVを編集せずに取り込むと、全行が「変更なし」になり、編集履歴が増えない。
-3. Excelで編集し「CSV UTF-8」「CSV（コンマ区切り、Shift_JIS）」のどちらで保存しても取り込める。
+3. Excelで編集し「CSV UTF-8（コンマ区切り）」で保存したファイルを取り込める。Shift_JIS等のUTF-8でないファイルは、UTF-8での保存を案内するエラーになる。
+3a. CSVの日時・ファイル名の日時がブラウザーのタイムゾーン設定で表示され、タイムゾーンを変えたブラウザーでも往復して値が変わらない。
+3b. 日本語の表示名（手動、成功 など）を書いた行はエラーになる。
 4. 事前確認では、DBが変わらず、行ごとの新規／更新／変更なし／エラーと差分が表示される。
 5. エラー行を含むCSVを反映しても、何も書き込まれない。
 6. 更新されたケース・結果に「CSVインポート: <ファイル名>」の編集履歴が残る。
@@ -150,5 +154,5 @@ CSVと添付をまとめた一括取り込み・出力の方式を別ADRで決�
 |---|---|
 | Excelが日時・数値の形式を変えて保存する | 日時は複数形式を受け付ける。`case_key` 等が数値化されて先頭の0が消える点は、ドキュメントで「文字列として開く」手順を案内する |
 | 大きなCSVで処理が長時間になりロックが続く | 5000行の上限。超える場合は分割を案内する |
-| 文字コードの誤判定 | UTF-8として妥当かを先に判定する。事前確認の差分で文字化けに気づけるようにする |
+| Excelの既定保存（Shift_JIS）で保存される | UTF-8以外はエラーにし、メッセージと画面で「CSV UTF-8」での保存手順を案内する |
 | 取り込みによる意図しない上書き | 事前確認を必須の手順とし、差分を表示する。編集履歴から復元できる |
