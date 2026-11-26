@@ -156,6 +156,218 @@ const field = (
   required = false,
   type = "text",
 ): Field => ({ key, label, value, required, type });
+// Time zone of the browser: CSV times and export file names follow it (docs/adr/0001-csv-import-export.md).
+const browserTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+type ImportKind = "cases" | "runs";
+const importLabels: Record<ImportKind, string> = {
+  cases: "テスト項目",
+  runs: "実行履歴",
+};
+const importActions: Record<string, string> = {
+  created: "新規",
+  updated: "更新",
+  unchanged: "変更なし",
+  error: "エラー",
+};
+async function downloadCSV(path: string) {
+  const r = await fetch("/api" + path);
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try {
+      msg = (await r.json()).message || msg;
+    } catch {}
+    throw Error(msg);
+  }
+  const disposition = r.headers.get("Content-Disposition") || "";
+  const encoded = /filename\*=UTF-8''([^;]+)/.exec(disposition)?.[1];
+  const name = encoded ? decodeURIComponent(encoded) : "export.csv";
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function ImportDialog({
+  kind,
+  appID,
+  onClose,
+  onApplied,
+}: {
+  kind: ImportKind;
+  appID: number;
+  onClose: () => void;
+  onApplied: () => Promise<void>;
+}) {
+  const [file, File_] = useState<File | null>(null),
+    [by, By] = useState(""),
+    [report, Report] = useState<Row | null>(null),
+    [error, ErrorMsg] = useState(""),
+    [busy, Busy] = useState(false),
+    [showAll, ShowAll] = useState(false);
+  async function send(dryRun: boolean) {
+    if (!file) return;
+    ErrorMsg("");
+    Busy(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("changed_by", by);
+      const query = new URLSearchParams({ tz: browserTZ });
+      if (dryRun) query.set("dry_run", "true");
+      const r = await fetch(`/api/apps/${appID}/${kind}/import?${query}`, {
+        method: "POST",
+        body: form,
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok && !body.summary)
+        throw Error(body.message || `HTTP ${r.status}`);
+      Report(body);
+      if (body.applied) await onApplied();
+      else if (!dryRun) ErrorMsg("エラーがあるため反映しませんでした");
+    } catch (e) {
+      ErrorMsg((e as Error).message);
+    } finally {
+      Busy(false);
+    }
+  }
+  const rows: Row[] = (report?.rows || []).filter(
+    (r: Row) => showAll || r.action !== "unchanged",
+  );
+  const errors = report?.summary?.errors || 0;
+  return (
+    <div className="overlay">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="import-title"
+        className="dialog wide"
+      >
+        <h2 id="import-title">{importLabels[kind]}のインポート</h2>
+        <p className="muted">
+          UTF-8のCSVのみ取り込めます（Excelでは「CSV
+          UTF-8（コンマ区切り）」で保存）。日時はこのブラウザーのタイムゾーン（
+          {browserTZ}）として扱います。
+          {kind === "runs" &&
+            " 新しい実行回は run_id に NEW-1 のようなラベルを書きます。"}
+        </p>
+        <label>
+          CSVファイル
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            aria-label="CSVファイル"
+            disabled={busy || !!report?.applied}
+            onChange={(e) => {
+              File_(e.target.files?.[0] || null);
+              Report(null);
+              ErrorMsg("");
+            }}
+          />
+        </label>
+        <label>
+          変更者
+          <input
+            aria-label="変更者"
+            value={by}
+            disabled={busy || !!report?.applied}
+            onChange={(e) => By(e.target.value)}
+          />
+        </label>
+        {report && (
+          <div className="import-report">
+            <p>
+              <strong>
+                {report.applied
+                  ? "反映しました"
+                  : report.dry_run
+                    ? "事前確認の結果"
+                    : "反映できませんでした"}
+              </strong>
+              ：新規 {report.summary.created} 件 · 更新 {report.summary.updated}{" "}
+              件 · 変更なし {report.summary.unchanged} 件 · エラー {errors} 件
+            </p>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={showAll}
+                onChange={(e) => ShowAll(e.target.checked)}
+              />
+              変更なしの行も表示
+            </label>
+            {rows.length > 0 && (
+              <div className="table-wrap import-rows">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>行</th>
+                      <th>キー</th>
+                      <th>判定</th>
+                      <th>内容</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr
+                        key={r.line}
+                        className={r.action === "error" ? "import-error" : ""}
+                      >
+                        <td>{r.line}</td>
+                        <td>{r.key}</td>
+                        <td>{importActions[r.action] || r.action}</td>
+                        <td>
+                          {r.error ||
+                            Object.entries(r.changes || {}).map(([k, v]) => (
+                              <div key={k}>
+                                <code>{k}</code>:{" "}
+                                {(v as string[])[0] || "（空）"} →{" "}
+                                {(v as string[])[1] || "（空）"}
+                              </div>
+                            ))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+        {error && (
+          <p role="alert" className="error">
+            {error}
+          </p>
+        )}
+        <div className="dialog-actions">
+          <button type="button" onClick={onClose} disabled={busy}>
+            {report?.applied ? "閉じる" : "キャンセル"}
+          </button>
+          {!report?.applied && (
+            <>
+              <button
+                type="button"
+                disabled={busy || !file}
+                onClick={() => void send(true)}
+              >
+                {busy ? "確認中…" : "事前確認"}
+              </button>
+              <button
+                type="button"
+                className="primary"
+                disabled={busy || !report?.dry_run || errors > 0}
+                onClick={() => void send(false)}
+              >
+                反映する
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
 function App() {
   const [apps, A] = useState<Row[]>([]),
     [appID, ID] = useState(0),
@@ -180,9 +392,10 @@ function App() {
       rows: Row[];
       resultID?: number;
     } | null>(null),
-    [past, Past] = useState<{ title: string; rows: Row[] } | null>(null);
+    [past, Past] = useState<{ title: string; rows: Row[] } | null>(null),
+    [importing, Importing] = useState<ImportKind | null>(null);
   useEffect(() => {
-    if (!modal && !history && !past) return;
+    if (!modal && !history && !past && !importing) return;
     const previous = document.activeElement as HTMLElement | null;
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
     const focusables = () =>
@@ -197,6 +410,7 @@ function App() {
         Modal(null);
         History(null);
         Past(null);
+        Importing(null);
       }
       if (event.key === "Tab") {
         const nodes = focusables();
@@ -216,7 +430,7 @@ function App() {
       document.removeEventListener("keydown", onKey);
       previous?.focus();
     };
-  }, [modal, history, past, busy]);
+  }, [modal, history, past, importing, busy]);
   const current = apps.find((a) => a.id === appID),
     active = cases.filter((c) => c.is_active);
   async function act(fn: () => Promise<void>) {
@@ -263,7 +477,11 @@ function App() {
       fields: [
         field("name", "アプリ名", a?.name, true),
         field("package_name", "パッケージ名", a?.package_name),
-        field("current_version", "現在のバージョン（例: 1.2.0）", a?.current_version),
+        field(
+          "current_version",
+          "現在のバージョン（例: 1.2.0）",
+          a?.current_version,
+        ),
         field("description", "説明", a?.description, false, "textarea"),
       ],
       submit: async (v) => {
@@ -547,11 +765,40 @@ function App() {
                       : "実行回を選んで、結果・端末情報・添付を確認できます。"}
                   </p>
                 </div>
-                {tab === "cases" && (
-                  <button disabled={busy} onClick={() => editCase()}>
-                    ＋ テスト項目を追加
+                <div className="section-actions">
+                  <button
+                    disabled={busy || !appID}
+                    onClick={() =>
+                      void act(() => {
+                        const q = new URLSearchParams({ tz: browserTZ });
+                        if (tab === "cases")
+                          q.set("include_inactive", String(inactive));
+                        else if (date) {
+                          q.set("from", date);
+                          q.set("to", date);
+                        }
+                        return downloadCSV(
+                          `/apps/${appID}/${tab === "cases" ? "cases" : "runs"}/export?${q}`,
+                        );
+                      })
+                    }
+                  >
+                    エクスポート
                   </button>
-                )}
+                  <button
+                    disabled={busy || !appID}
+                    onClick={() =>
+                      Importing(tab === "cases" ? "cases" : "runs")
+                    }
+                  >
+                    インポート
+                  </button>
+                  {tab === "cases" && (
+                    <button disabled={busy} onClick={() => editCase()}>
+                      ＋ テスト項目を追加
+                    </button>
+                  )}
+                </div>
               </div>
               {tab === "cases" ? (
                 <>
@@ -978,6 +1225,17 @@ function App() {
             </form>
           </section>
         </div>
+      )}
+      {importing && (
+        <ImportDialog
+          kind={importing}
+          appID={appID}
+          onClose={() => Importing(null)}
+          onApplied={async () => {
+            await refresh();
+            if (run) Run(await api(`/runs/${run.id}`));
+          }}
+        />
       )}
       {history && (
         <div className="overlay">
