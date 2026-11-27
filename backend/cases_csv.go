@@ -133,8 +133,9 @@ func (s *server) importCases(c echo.Context) error {
 
 	report := newImportReport(dryRun)
 	type pending struct {
-		key string
-		in  caseInput
+		key        string
+		in         caseInput
+		createOnly bool
 	}
 	writes := []pending{}
 	seen := map[string]int{}
@@ -160,7 +161,7 @@ func (s *server) importCases(c echo.Context) error {
 			"steps": &next.Steps, "expected_result": &next.Expected, "test_type": &next.TestType}
 		for col, dst := range str {
 			if v, ok := row.Get(col); ok {
-				*dst = v
+				*dst = preserveCSVText(*dst, v)
 			}
 		}
 		var cellErr error
@@ -201,7 +202,7 @@ func (s *server) importCases(c echo.Context) error {
 			res.Action = "created"
 		}
 		if res.Action != "unchanged" {
-			writes = append(writes, pending{key, in})
+			writes = append(writes, pending{key, in, !found})
 		}
 		report.add(res)
 	}
@@ -215,7 +216,7 @@ func (s *server) importCases(c echo.Context) error {
 		return c.JSON(200, report)
 	}
 	for _, w := range writes {
-		if _, _, err = upsertCase(ctx, tx, app, w.key, w.in); err != nil {
+		if _, _, err = saveCase(ctx, tx, app, w.key, w.in, w.createOnly); err != nil {
 			return err
 		}
 	}

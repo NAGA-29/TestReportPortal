@@ -112,8 +112,16 @@ func (s *server) upsertCaseByKey(c echo.Context) error {
 // upsertCase creates (201) or updates (200) the case app+key inside tx and records edit history.
 // An unchanged definition is returned as-is (200) without a history entry.
 func upsertCase(ctx context.Context, tx pgx.Tx, app int64, key string, v caseInput) (int, json.RawMessage, error) {
+	return saveCase(ctx, tx, app, key, v, false)
+}
+
+// saveCase はcreateOnlyの場合、既存行を更新せず競合として扱う。
+func saveCase(ctx context.Context, tx pgx.Tx, app int64, key string, v caseInput, createOnly bool) (int, json.RawMessage, error) {
 	const lockCase = "SELECT to_jsonb(t) FROM test_cases t WHERE app_id=$1 AND case_key=$2 FOR UPDATE"
 	before, err := object(ctx, tx, lockCase, app, key)
+	if err == nil && createOnly {
+		return 0, nil, echo.NewHTTPError(409, "他の操作と競合しました。もう一度事前確認してください")
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		active := true
 		if v.Active != nil {
@@ -133,7 +141,10 @@ func upsertCase(ctx context.Context, tx pgx.Tx, app int64, key string, v caseInp
 		if !errors.Is(e, pgx.ErrNoRows) {
 			return 0, nil, e
 		}
-		// A concurrent request created the same key first; continue as an update of that row.
+		if createOnly {
+			return 0, nil, echo.NewHTTPError(409, "他の操作と競合しました。もう一度事前確認してください")
+		}
+		// 同じキーが先に作成された場合、通常のAPIではその行を更新する。
 		before, err = object(ctx, tx, lockCase, app, key)
 	}
 	if err != nil {

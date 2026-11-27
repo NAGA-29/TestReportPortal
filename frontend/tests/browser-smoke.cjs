@@ -94,6 +94,10 @@ const { chromium } = require("playwright");
   await download.saveAs(exported);
   const csv = fs.readFileSync(exported, "utf8");
   if (!csv.startsWith("\ufeffcase_key,")) throw Error("CSV header/BOM missing");
+  if (
+    !/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}/.test(csv)
+  )
+    throw Error("CSVの日時にUTCオフセットがありません");
   const edited = path.join(output, "cases-edited.csv");
   fs.writeFileSync(
     edited,
@@ -108,8 +112,31 @@ const { chromium } = require("playwright");
   await dialog
     .getByText("ログイン画面が表示される（CSV）", { exact: false })
     .waitFor();
+  // 反映リクエストを保留し、処理中のEscapeでダイアログが閉じないことを確認する。
+  let releaseApply;
+  const applyGate = new Promise((resolve) => {
+    releaseApply = resolve;
+  });
+  let markApplyPending;
+  const applyPending = new Promise((resolve) => {
+    markApplyPending = resolve;
+  });
+  await page.route("**/cases/import?*", async (route) => {
+    markApplyPending();
+    await applyGate;
+    await route.continue();
+  });
   await dialog.getByRole("button", { name: "反映する" }).click();
+  await applyPending;
+  await page.keyboard.press("Escape");
+  if (
+    !(await dialog.isVisible()) ||
+    !(await dialog.getByRole("button", { name: "閉じる", exact: true }).isDisabled())
+  )
+    throw Error("反映中にインポート画面が閉じました");
+  releaseApply();
   await dialog.getByText("反映しました").waitFor();
+  await page.unroute("**/cases/import?*");
   await dialog.getByRole("button", { name: "閉じる" }).click();
   await dialog.waitFor({ state: "detached" });
   await page.getByText("ログイン画面が表示される（CSV）").first().waitFor();

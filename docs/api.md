@@ -107,11 +107,14 @@ curl -F file=@screenshot.png http://127.0.0.1:3000/api/runs/1/results/by-key/LOG
   （`Content-Disposition` の `filename*`。`filename` はASCIIの代替名）。
 - 取り込みはUTF-8のみ（BOM任意）。Shift_JIS等は400。5MB・5000行まで。ヘッダーは英語のフィールド名、列順は自由、不明な列は400。
 - `tz`（IANA名、例 `Asia/Tokyo`）で日時の地域時間を指定。省略時UTC。画面はブラウザーの設定値を送る。
-  出力は `YYYY-MM-DD HH:MM:SS`、取り込みは加えて `YYYY/MM/DD HH:MM[:SS]` とRFC 3339を受け付ける。
+  出力はUTCオフセット付きの `YYYY-MM-DD HH:MM:SS±HH:MM`（例: `2026-11-26 15:30:00+09:00`）。
+  取り込みはこの形式に加え、従来のオフセットなし `YYYY-MM-DD HH:MM[:SS]`、`YYYY/MM/DD HH:MM[:SS]` とRFC 3339を受け付ける。オフセットなしの値は `tz` の地域時間として解釈する。
 - 列挙値は内部コードのみ（`manual`、`passed` など）。真偽値は `true` / `false`。
 - `=` `+` `-` `@` タブ・CRで始まるセルは出力時に先頭へ `'` を付け、取り込み時に外す。
 - 取り込みはmultipartの `file`（必須）と `changed_by`（任意）。`?dry_run=true` は書き込まずに判定だけ返す。
   反映は全行を1トランザクションで行い、1行でもエラーがあれば422で何も書き込まない。
+  新規ケースと同じ識別子が反映処理中に作成された場合は409で全体を取り消し、再度の事前確認を求める。
+  改行表現（CRLF・CR・LF）だけが異なるテキストは変更なしとし、保存済みの値を維持する。
   変更は編集履歴に `reason`「CSVインポート: <ファイル名>」で記録し、変更のない行は記録しない。CSVにない行は変更しない。
 
 ```sh

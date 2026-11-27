@@ -85,6 +85,8 @@
 | `POST /api/apps/:app/runs/import` | multipart `file`、`changed_by`。`?dry_run=true` で事前確認、`?tz=` |
 
 `tz` はIANAタイムゾーン名（例 `Asia/Tokyo`）。画面はブラウザーの設定値を送る。省略時はUTC。
+CSV内の日時はUTCオフセット付きの `YYYY-MM-DD HH:MM:SS±HH:MM`（例: `2026-11-26 15:30:00+09:00`）で出力する。
+取り込みはこの形式とRFC 3339に加え、従来のオフセットなし `YYYY-MM-DD HH:MM[:SS]`、`YYYY/MM/DD HH:MM[:SS]` を受け付ける。オフセットなしの値は `tz` の地域時間として解釈する。
 
 取り込みの応答（事前確認・反映とも同じ形）:
 

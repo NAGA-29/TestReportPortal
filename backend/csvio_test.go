@@ -84,7 +84,7 @@ func TestParseRejects(t *testing.T) {
 func TestParseCSVTime(t *testing.T) {
 	tokyo, _ := time.LoadLocation("Asia/Tokyo")
 	want := time.Date(2026, 11, 26, 6, 30, 0, 0, time.UTC)
-	for _, s := range []string{"2026-11-26 15:30:00", "2026-11-26 15:30", "2026/11/26 15:30", "2026/11/26 15:30:00", "2026-11-26T06:30:00Z", "2026-11-26T15:30:00+09:00"} {
+	for _, s := range []string{"2026-11-26 15:30:00+09:00", "2026-11-26 06:30:00+00:00", "2026-11-26 15:30:00", "2026-11-26 15:30", "2026/11/26 15:30", "2026/11/26 15:30:00", "2026-11-26T06:30:00Z", "2026-11-26T15:30:00+09:00"} {
 		got, err := parseCSVTime(s, tokyo)
 		if err != nil || !got.Equal(want) {
 			t.Errorf("%s -> %v %v", s, got, err)
@@ -93,7 +93,7 @@ func TestParseCSVTime(t *testing.T) {
 	if _, err := parseCSVTime("26/11/2026", tokyo); err == nil {
 		t.Error("expected error")
 	}
-	if s := formatCSVTime(&want, tokyo); s != "2026-11-26 15:30:00" {
+	if s := formatCSVTime(&want, tokyo); s != "2026-11-26 15:30:00+09:00" {
 		t.Errorf("format=%s", s)
 	}
 }
@@ -126,5 +126,109 @@ func TestExportFileName(t *testing.T) {
 	long := strings.Repeat("あ", 100)
 	if name, _ = exportFileName(long, 1, "テスト項目", "test-cases", now); !strings.HasPrefix(name, strings.Repeat("あ", 80)+"_") {
 		t.Errorf("not truncated: %s", name)
+	}
+}
+
+func TestCSVTimeRoundTripDST(t *testing.T) {
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ utc, local string }{
+		{"2026-11-01T05:30:00Z", "2026-11-01 01:30:00-04:00"},
+		{"2026-11-01T06:30:00Z", "2026-11-01 01:30:00-05:00"},
+	} {
+		t.Run(tc.utc, func(t *testing.T) {
+			want, err := time.Parse(time.RFC3339, tc.utc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			exported := formatCSVTime(&want, loc)
+			if exported != tc.local {
+				t.Fatalf("format=%q, want %q", exported, tc.local)
+			}
+			for _, importLoc := range []*time.Location{loc, time.UTC} {
+				got, err := parseCSVTime(exported, importLoc)
+				if err != nil || !got.Equal(want) {
+					t.Fatalf("round trip=%v, %v; want %v", got, err, want)
+				}
+				er := &existingRun{Started: want, Finished: &want, text: map[string]string{}}
+				changes, msg := planRunUpdate(er, csvRow{values: map[string]string{
+					"started_at": exported, "finished_at": exported,
+				}}, importLoc)
+				if msg != "" || len(changes) != 0 || er.runChanged {
+					t.Errorf("未編集の日時に差分: %v, %s", changes, msg)
+				}
+			}
+		})
+	}
+	if got := formatCSVTime(nil, loc); got != "" {
+		t.Errorf("nil=%q", got)
+	}
+}
+
+func TestParseCSVInt(t *testing.T) {
+	for in, want := range map[string]int{
+		"-2147483648": -2147483648, "2147483647": 2147483647, " -1 ": -1, "0": 0,
+	} {
+		if got, err := parseCSVInt(in); err != nil || got != want {
+			t.Errorf("%q -> %d, %v; want %d", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"2147483648", "-2147483649", "999999999999999999999", "1.5", "", "abc"} {
+		if _, err := parseCSVInt(in); err == nil || !strings.Contains(err.Error(), "整数") {
+			t.Errorf("%q: 整数の行エラーが必要: %v", in, err)
+		}
+	}
+}
+
+func TestCSVNewlineRoundTrip(t *testing.T) {
+	for _, stored := range []string{"A\r\nB", "A\rB", "A\nB", "\r先頭\r末尾\r", "A\r\nB\rC\nD"} {
+		t.Run(stored, func(t *testing.T) {
+			header := []string{"run_notes"}
+			table, err := parseCSV(writeCSV(header, [][]string{{stored}}), header, header)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cell, _ := table.Rows[0].Get("run_notes")
+			if normalizeCSVNewlines(cell) != normalizeCSVNewlines(stored) {
+				t.Fatalf("改行が失われました: %q -> %q", stored, cell)
+			}
+			next := preserveCSVText(stored, cell)
+			changes := map[string][2]string{}
+			diff(changes, "run_notes", stored, next)
+			if next != stored || len(changes) != 0 {
+				t.Errorf("保存済みの値を維持できません: %q, %v", next, changes)
+			}
+			er := &existingRun{text: map[string]string{"notes": stored}}
+			runChanges, msg := planRunUpdate(er, table.Rows[0], time.UTC)
+			if msg != "" || len(runChanges) != 0 || er.runChanged || er.newText["notes"] != stored {
+				t.Errorf("未編集の実行情報に差分: %v, %s", runChanges, msg)
+			}
+			// 別の列を更新しても、未編集のテキストの改行表現は維持する。
+			table.Rows[0].values["runner_name"] = "変更後"
+			er = &existingRun{text: map[string]string{"notes": stored, "runner_name": "変更前"}}
+			runChanges, msg = planRunUpdate(er, table.Rows[0], time.UTC)
+			if msg != "" || len(runChanges) != 1 || er.newText["notes"] != stored || !er.runChanged {
+				t.Errorf("実行情報の差分が不正: %v, %s, %q", runChanges, msg, er.newText["notes"])
+			}
+		})
+	}
+	if got := preserveCSVText("A\rB", "A\nC"); got != "A\nC" {
+		t.Errorf("内容の変更は反映する必要があります: %q", got)
+	}
+}
+
+func TestCanonicalRunRef(t *testing.T) {
+	for in, want := range map[string]string{
+		"42": "42", "042": "42", "+42": "42", " 0042 ": "42",
+		"9223372036854775807": "9223372036854775807",
+		"NEW-042":             "NEW-042", "NEW-42": "NEW-42",
+		"": "", "abc": "abc", "0": "0", "-042": "-042",
+		"9223372036854775808": "9223372036854775808",
+	} {
+		if got := canonicalRunRef(in); got != want {
+			t.Errorf("%q -> %q, want %q", in, got, want)
+		}
 	}
 }

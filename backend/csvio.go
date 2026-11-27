@@ -22,7 +22,7 @@ import (
 const (
 	csvMaxBytes = 5 << 20
 	csvMaxRows  = 5000
-	csvTimeFmt  = "2006-01-02 15:04:05"
+	csvTimeFmt  = "2006-01-02 15:04:05-07:00"
 )
 
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
@@ -154,7 +154,8 @@ func writeCSV(header []string, rows [][]string) []byte {
 	for _, row := range rows {
 		out := make([]string, len(row))
 		for i, v := range row {
-			out[i] = escapeCell(v)
+			// 単独CRがUseCRLFで消えないよう、セル内の改行を先に統一する。
+			out[i] = escapeCell(normalizeCSVNewlines(v))
 		}
 		w.Write(out)
 	}
@@ -182,7 +183,7 @@ func formatCSVTime(t *time.Time, loc *time.Location) string {
 	return t.In(loc).Format(csvTimeFmt)
 }
 
-var csvTimeLayouts = []string{"2006-01-02 15:04:05", "2006-01-02 15:04", "2006/01/02 15:04:05", "2006/01/02 15:04",
+var csvTimeLayouts = []string{csvTimeFmt, "2006-01-02 15:04:05", "2006-01-02 15:04", "2006/01/02 15:04:05", "2006/01/02 15:04",
 	"2006/1/2 15:04:05", "2006/1/2 15:04", "2006-01-02T15:04:05"}
 
 // parseCSVTime accepts the export format, Excel's re-saved slash format and RFC 3339. Values without an offset are in loc.
@@ -196,7 +197,7 @@ func parseCSVTime(s string, loc *time.Location) (time.Time, error) {
 			return t, nil
 		}
 	}
-	return time.Time{}, fmt.Errorf("日時の形式が不正です: %q（例: 2026-11-26 15:30:00）", s)
+	return time.Time{}, fmt.Errorf("日時の形式が不正です: %q（例: 2026-11-26 15:30:00+09:00）", s)
 }
 
 func parseCSVBool(s string) (bool, error) {
@@ -210,11 +211,24 @@ func parseCSVBool(s string) (bool, error) {
 }
 
 func parseCSVInt(s string) (int, error) {
-	v, err := strconv.Atoi(strings.TrimSpace(s))
+	v, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
 	if err != nil {
 		return 0, fmt.Errorf("整数を指定してください: %q", s)
 	}
-	return v, nil
+	return int(v), nil
+}
+
+// normalizeCSVNewlines はCSV・表計算ソフト間で変換される改行を統一する。
+func normalizeCSVNewlines(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
+}
+
+// preserveCSVText は改行表現だけが異なる場合に保存済みの値を残す。
+func preserveCSVText(old, next string) string {
+	if normalizeCSVNewlines(old) == normalizeCSVNewlines(next) {
+		return old
+	}
+	return next
 }
 
 // exportFileName builds "<app>_<kind>_<YYYYMMDD_HHMMSS>.csv" and an ASCII-only fallback.

@@ -198,11 +198,13 @@ function ImportDialog({
   appID,
   onClose,
   onApplied,
+  onBusyChange,
 }: {
   kind: ImportKind;
   appID: number;
   onClose: () => void;
   onApplied: () => Promise<void>;
+  onBusyChange: (busy: boolean) => void;
 }) {
   const [file, File_] = useState<File | null>(null),
     [by, By] = useState(""),
@@ -214,6 +216,7 @@ function ImportDialog({
     if (!file) return;
     ErrorMsg("");
     Busy(true);
+    onBusyChange(true);
     try {
       const form = new FormData();
       form.append("file", file);
@@ -234,6 +237,7 @@ function ImportDialog({
       ErrorMsg((e as Error).message);
     } finally {
       Busy(false);
+      onBusyChange(false);
     }
   }
   const rows: Row[] = (report?.rows || []).filter(
@@ -396,7 +400,8 @@ function App() {
       resultID?: number;
     } | null>(null),
     [past, Past] = useState<{ title: string; rows: Row[] } | null>(null),
-    [importing, Importing] = useState<ImportKind | null>(null);
+    [importing, Importing] = useState<ImportKind | null>(null),
+    [importBusy, ImportBusy] = useState(false);
   useEffect(() => {
     if (!modal && !history && !past && !importing) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -409,7 +414,7 @@ function App() {
       );
     focusables()[0]?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) {
+      if (event.key === "Escape" && !busy && !importBusy) {
         Modal(null);
         History(null);
         Past(null);
@@ -433,7 +438,7 @@ function App() {
       document.removeEventListener("keydown", onKey);
       previous?.focus();
     };
-  }, [modal, history, past, importing, busy]);
+  }, [modal, history, past, importing, busy, importBusy]);
   const current = apps.find((a) => a.id === appID),
     active = cases.filter((c) => c.is_active);
   async function act(fn: () => Promise<void>) {
@@ -1252,6 +1257,7 @@ function App() {
       )}
       {importing && (
         <ImportDialog
+          onBusyChange={ImportBusy}
           kind={importing}
           appID={appID}
           onClose={() => Importing(null)}

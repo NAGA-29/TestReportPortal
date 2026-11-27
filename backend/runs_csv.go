@@ -153,6 +153,15 @@ type newRun struct {
 	rows     []newRunRow
 }
 
+// canonicalRunRef は有効な数値IDの表記を統一し、ラベルや不正値はそのまま返す。
+func canonicalRunRef(ref string) string {
+	ref = strings.TrimSpace(ref)
+	if id, err := strconv.ParseInt(ref, 10, 64); err == nil && id > 0 {
+		return strconv.FormatInt(id, 10)
+	}
+	return ref
+}
+
 func sameSecond(a, b time.Time) bool { return a.Truncate(time.Second).Equal(b.Truncate(time.Second)) }
 
 // importRuns: POST /api/apps/:app/runs/import?dry_run=true&tz=Asia/Tokyo (multipart: file, changed_by)
@@ -192,7 +201,7 @@ func (s *server) importRuns(c echo.Context) error {
 	byRef := map[string]*runGroup{}
 	for _, row := range table.Rows {
 		ref, _ := row.Get("run_id")
-		ref = strings.TrimSpace(ref)
+		ref = canonicalRunRef(ref)
 		g := byRef[ref]
 		if g == nil {
 			g = &runGroup{ref: ref}
@@ -291,10 +300,10 @@ func (s *server) importRuns(c echo.Context) error {
 					continue
 				}
 				if v, ok := row.Get("actual_result"); ok {
-					next.Actual = v
+					next.Actual = preserveCSVText(cur.Actual, v)
 				}
 				if v, ok := row.Get("comment"); ok {
-					next.Comment = v
+					next.Comment = preserveCSVText(cur.Comment, v)
 				}
 				r.Changes = map[string][2]string{}
 				if i == 0 {
@@ -400,7 +409,7 @@ func runConsistencyError(g *runGroup, t csvTable) string {
 		}
 		want, _ := g.rows[0].Get(col)
 		for _, row := range g.rows[1:] {
-			if v, _ := row.Get(col); v != want {
+			if v, _ := row.Get(col); normalizeCSVNewlines(v) != normalizeCSVNewlines(want) {
 				return fmt.Sprintf("同じ実行回の行で %s の値が異なります（%d行目と%d行目）", col, g.rows[0].Line, row.Line)
 			}
 		}
@@ -496,7 +505,11 @@ func planRunUpdate(er *existingRun, row csvRow, loc *time.Location) (map[string]
 	er.newText = map[string]string{}
 	for _, col := range runTextColumns {
 		er.newText[col.db] = er.text[col.db]
-		if v, ok := row.Get(col.csv); ok && v != er.text[col.db] {
+		if v, ok := row.Get(col.csv); ok {
+			v = preserveCSVText(er.text[col.db], v)
+			if v == er.text[col.db] {
+				continue
+			}
 			changes[col.csv] = [2]string{er.text[col.db], v}
 			er.newText[col.db] = v
 			er.runChanged = true

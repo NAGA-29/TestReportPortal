@@ -303,8 +303,8 @@ class CsvRuns(unittest.TestCase):
         self.assertRegex(disposition_name(h),rf'^Smoke Runs {tag}_実行履歴_\d{{8}}_\d{{6}}\.csv$')
         rows=csv_rows(raw); fields=list(rows[0].keys())
         self.assertEqual([(r['run_id'],r['case_key'],r['started_at'],r['case_title']) for r in rows],
-                         [(str(run['id']),'R-1','2026-11-26 15:30:00','一'),(str(run['id']),'R-2','2026-11-26 15:30:00','二')])
-        self.assertEqual(csv_rows(fetch_csv(path+'/runs/export?tz=UTC')[0])[0]['started_at'],'2026-11-26 06:30:00')
+                         [(str(run['id']),'R-1','2026-11-26 15:30:00+09:00','一'),(str(run['id']),'R-2','2026-11-26 15:30:00+09:00','二')])
+        self.assertEqual(csv_rows(fetch_csv(path+'/runs/export?tz=UTC')[0])[0]['started_at'],'2026-11-26 06:30:00+00:00')
         self.assertEqual(fetch_csv(path+'/runs/export?tz=Asia/Tokyo&from=2026-11-27')[0].count(b'\n'),1)  # header only
         rep=import_csv(path+'/runs/import?tz=Asia/Tokyo',raw)
         self.assertEqual(rep['summary'],dict(created=0,updated=0,unchanged=2,errors=0))
