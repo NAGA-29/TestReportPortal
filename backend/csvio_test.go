@@ -2,13 +2,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/csv"
 	"strings"
 	"testing"
 	"time"
 )
 
 func TestEscapeRoundTrip(t *testing.T) {
-	for _, v := range []string{"=SUM(1)", "+1", "-1", "@cmd", "\tx", "plain", "", "'quoted", "- 手順1\n- 手順2"} {
+	for _, v := range []string{"=SUM(1)", "+1", "-1", "@cmd", "\tx", "\r=1+1", "\n=1", "\r\n=1", "'\nfoo", "'=x", "''=x", "=x", "plain", "", "'", "''", "'quoted", "- 手順1\n- 手順2"} {
 		esc := escapeCell(v)
 		if strings.ContainsRune(formulaStarts, rune(firstByte(esc))) {
 			t.Errorf("escapeCell(%q)=%q still starts with a formula character", v, esc)
@@ -16,6 +17,45 @@ func TestEscapeRoundTrip(t *testing.T) {
 		if got := unescapeCell(esc); got != v {
 			t.Errorf("round trip %q -> %q -> %q", v, esc, got)
 		}
+	}
+}
+
+func TestCSVFormulaRoundTrip(t *testing.T) {
+	for _, tc := range []struct {
+		value  string
+		escape bool
+	}{
+		{"\r=1+1", true}, {"\n=1", true}, {"\r\n=1", true},
+		{"'\nfoo", true}, {"'=x", true}, {"''=x", true}, {"=x", true},
+		{"+1", true}, {"-1", true}, {"@cmd", true}, {"\tx", true},
+		{"plain", false}, {"'quoted", false},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			header := []string{"steps"}
+			data := writeCSV(header, [][]string{{tc.value}})
+			records, err := csv.NewReader(bytes.NewReader(bytes.TrimPrefix(data, utf8BOM))).ReadAll()
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := normalizeCSVNewlines(tc.value)
+			exported := want
+			if tc.escape {
+				exported = "'" + want
+			}
+			if len(records) != 2 || len(records[1]) != 1 || records[1][0] != exported {
+				t.Fatalf("export=%q, want cell %q", records, exported)
+			}
+			table, err := parseCSV(data, header, header)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(table.Rows) != 1 {
+				t.Fatalf("rows=%d, want 1", len(table.Rows))
+			}
+			if got, _ := table.Rows[0].Get("steps"); got != want {
+				t.Errorf("round trip %q -> %q, want %q", tc.value, got, want)
+			}
+		})
 	}
 }
 

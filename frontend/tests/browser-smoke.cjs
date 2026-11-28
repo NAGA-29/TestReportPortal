@@ -131,7 +131,7 @@ const { chromium } = require("playwright");
   await page.keyboard.press("Escape");
   if (
     !(await dialog.isVisible()) ||
-    !(await dialog.getByRole("button", { name: "閉じる", exact: true }).isDisabled())
+    !(await dialog.getByRole("button", { name: "キャンセル", exact: true }).isDisabled())
   )
     throw Error("反映中にインポート画面が閉じました");
   releaseApply();

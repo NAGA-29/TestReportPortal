@@ -28,10 +28,16 @@ const (
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 // formulaStarts are the leading characters spreadsheet applications may evaluate as a formula (OWASP CSV injection).
-const formulaStarts = "=+-@\t\r"
+const formulaStarts = "=+-@\t\r\n"
+
+// needsEscape also covers existing apostrophes so escaping remains reversible.
+func needsEscape(s string) bool {
+	s = strings.TrimLeft(s, "'")
+	return s != "" && strings.ContainsRune(formulaStarts, rune(s[0]))
+}
 
 func escapeCell(s string) string {
-	if s != "" && strings.ContainsRune(formulaStarts, rune(s[0])) {
+	if needsEscape(s) {
 		return "'" + s
 	}
 	return s
@@ -39,7 +45,7 @@ func escapeCell(s string) string {
 
 // unescapeCell reverses escapeCell so that exported values round-trip unchanged.
 func unescapeCell(s string) string {
-	if len(s) >= 2 && s[0] == '\'' && strings.ContainsRune(formulaStarts, rune(s[1])) {
+	if strings.HasPrefix(s, "'") && needsEscape(s[1:]) {
 		return s[1:]
 	}
 	return s
