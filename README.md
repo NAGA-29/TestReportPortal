@@ -2,7 +2,7 @@
 
 Androidアプリの手動・自動テスト結果を記録するローカルWebアプリのベース実装です。
 React + TypeScript / Go + Echo / PostgreSQL 17。要件定義は [docs/requirements.md](docs/requirements.md)、ER図・DB設計は [docs/er-diagram.md](docs/er-diagram.md)。
-画面の使い方は [利用ガイド](frontend/src/docs/user-guide.md)（アプリのサイドバー「ドキュメント」からも開けます）。
+画面の使い方は [利用ガイド](frontend/src/docs/user-guide.md)、テストの考え方は [テストの基礎知識](frontend/src/docs/testing-basics.md)（どちらもアプリのサイドバー「ドキュメント」から開けます）。
 設計判断は [docs/adr/](docs/adr/)、作業範囲は [docs/sow/](docs/sow/) に記録します。
 
 ## 起動

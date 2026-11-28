@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import guide from "./docs/user-guide.md?raw";
+import testingBasics from "./docs/testing-basics.md?raw";
 
-// A deliberately small Markdown renderer for the bundled user guide:
+// A deliberately small Markdown renderer for the bundled documents:
 // headings, paragraphs, (nested) lists, tables, **bold** and `code`.
 // Everything is rendered as React text nodes, so no HTML is injected.
 function inline(text: string): ReactNode[] {
@@ -123,19 +124,43 @@ function render(md: string) {
   }
   return { out, toc };
 }
-const { out, toc } = render(guide);
+const pages = [
+  { id: "guide", title: "利用ガイド", md: guide },
+  { id: "testing", title: "テストの基礎知識", md: testingBasics },
+].map((p) => ({ ...p, ...render(p.md) }));
 export function Docs() {
+  const [pageId, setPageId] = useState(pages[0].id);
+  const page = pages.find((p) => p.id === pageId) ?? pages[0];
+  const open = (id: string) => {
+    setPageId(id);
+    window.scrollTo(0, 0);
+  };
   return (
     <div className="docs">
       <div className="docs-toc" role="navigation" aria-label="目次">
+        <p className="eyebrow">ページ</p>
+        <div className="docs-pages">
+          {pages.map((p) => (
+            <button
+              key={p.id}
+              className={p.id === page.id ? "selected" : ""}
+              aria-current={p.id === page.id ? "page" : undefined}
+              onClick={() => open(p.id)}
+            >
+              {p.title}
+            </button>
+          ))}
+        </div>
         <p className="eyebrow">目次</p>
-        {toc.map((t) => (
+        {page.toc.map((t) => (
           <a key={t.id} href={"#" + t.id}>
             {t.text}
           </a>
         ))}
       </div>
-      <article className="doc-body">{out}</article>
+      <article className="doc-body" key={page.id}>
+        {page.out}
+      </article>
     </div>
   );
 }

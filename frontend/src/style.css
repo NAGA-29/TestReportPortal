@@ -842,6 +842,34 @@ summary {
   padding: 6px 10px;
   border-radius: 6px;
 }
+.docs-pages {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+.docs-pages button {
+  text-align: left;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #4b5d54;
+  cursor: pointer;
+}
+.docs-pages button:hover {
+  background: #eaf4ee;
+  color: #1f7250;
+}
+.docs-pages button.selected {
+  background: #eaf4ee;
+  border-color: #cfe5d8;
+  color: #1f7250;
+  font-weight: 600;
+}
+.doc-body h3 {
+  margin: 24px 0 8px;
+}
 .docs-toc a:hover {
   background: #eaf4ee;
   color: #1f7250;
