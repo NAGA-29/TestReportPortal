@@ -81,6 +81,89 @@ const { chromium } = require("playwright");
   await page.getByRole("button", { name: /テスト一覧/ }).click();
   await page.locator("table .badge.failed").waitFor();
   await page.locator("table .badge.passed").waitFor();
+  // CSV: export cases, edit a title, preview the import, apply it, then export run history.
+  const fs = require("fs"),
+    path = require("path");
+  let [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "エクスポート" }).click(),
+  ]);
+  if (!/_テスト項目_\d{8}_\d{6}\.csv$/.test(download.suggestedFilename()))
+    throw Error("Unexpected file name " + download.suggestedFilename());
+  const exported = path.join(output, "cases.csv");
+  await download.saveAs(exported);
+  const csv = fs.readFileSync(exported, "utf8");
+  if (!csv.startsWith("\ufeffcase_key,")) throw Error("CSV header/BOM missing");
+  if (
+    !/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}/.test(csv)
+  )
+    throw Error("CSVの日時にUTCオフセットがありません");
+  const edited = path.join(output, "cases-edited.csv");
+  fs.writeFileSync(
+    edited,
+    csv.replace("ログイン画面が表示される", "ログイン画面が表示される（CSV）"),
+  );
+  await page.getByRole("button", { name: "インポート" }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("CSVファイル").setInputFiles(edited);
+  await dialog.getByLabel("変更者").fill("UI検証");
+  await dialog.getByRole("button", { name: "事前確認" }).click();
+  await dialog.getByText(/更新 1\s*件/).waitFor();
+  await dialog
+    .getByText("ログイン画面が表示される（CSV）", { exact: false })
+    .waitFor();
+  // 反映リクエストを保留し、処理中のEscapeでダイアログが閉じないことを確認する。
+  let releaseApply;
+  const applyGate = new Promise((resolve) => {
+    releaseApply = resolve;
+  });
+  let markApplyPending;
+  const applyPending = new Promise((resolve) => {
+    markApplyPending = resolve;
+  });
+  await page.route("**/cases/import?*", async (route) => {
+    markApplyPending();
+    await applyGate;
+    await route.continue();
+  });
+  await dialog.getByRole("button", { name: "反映する" }).click();
+  let applyTimeout;
+  try {
+    await Promise.race([
+      applyPending,
+      new Promise((_, reject) => {
+        applyTimeout = setTimeout(() => {
+          reject(new Error([
+            "反映リクエストが送信されませんでした",
+            ...errors,
+          ].join("\n")));
+        }, 10000);
+        applyTimeout.unref();
+      }),
+    ]);
+  } finally {
+    clearTimeout(applyTimeout);
+  }
+  await page.keyboard.press("Escape");
+  if (
+    !(await dialog.isVisible()) ||
+    !(await dialog.getByRole("button", { name: "キャンセル", exact: true }).isDisabled())
+  )
+    throw Error("反映中にインポート画面が閉じました");
+  releaseApply();
+  await dialog.getByText("反映しました").waitFor();
+  await page.unroute("**/cases/import?*");
+  await dialog.getByRole("button", { name: "閉じる" }).click();
+  await dialog.waitFor({ state: "detached" });
+  await page.getByText("ログイン画面が表示される（CSV）").first().waitFor();
+  await page.getByRole("button", { name: /実行履歴/ }).click();
+  [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "エクスポート" }).click(),
+  ]);
+  if (!/_実行履歴_\d{8}_\d{6}\.csv$/.test(download.suggestedFilename()))
+    throw Error("Unexpected file name " + download.suggestedFilename());
+  await page.getByRole("button", { name: /テスト一覧/ }).click();
   await page.screenshot({
     path: require("path").join(output, "desktop.png"),
     fullPage: true,
@@ -96,7 +179,7 @@ const { chromium } = require("playwright");
     throw Error("Mobile page overflow");
   if (errors.length) throw Error(errors.join("\n"));
   console.log(
-    "PASS: UI app/case/run registration, result edit, history, recent comparison, mobile layout; no browser errors",
+    "PASS: UI app/case/run registration, result edit, history, recent comparison, CSV export/import, mobile layout; no browser errors",
   );
   await browser.close();
 })().catch((e) => {

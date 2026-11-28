@@ -23,6 +23,10 @@ JSON入力は未知の項目と複数JSONを拒否します。
 | PUT / PATCH | /runs/:run/results/by-key/:case_key | 実行回内の結果をケースキーで更新（PATCHは部分更新） |
 | POST | /runs/:run/results/by-key/:case_key/attachments | 実行回内の結果にケースキーで添付 |
 | GET | /attachments/:id | 添付本体（画像はinline、それ以外はダウンロード） |
+| GET | /apps/:app/cases/export | テスト項目のCSVエクスポート |
+| POST | /apps/:app/cases/import | テスト項目のCSVインポート（multipart） |
+| GET | /apps/:app/runs/export | 実行履歴のCSVエクスポート（1行1結果） |
+| POST | /apps/:app/runs/import | 実行履歴のCSVインポート（multipart） |
 
 作成例（IDは実際の応答値を使う）：
 
@@ -94,6 +98,53 @@ curl -X PATCH -H 'Content-Type: application/json' -d '{"finished_at":"2026-11-07
 curl -X PATCH -H 'Content-Type: application/json' -d '{"status":"failed","comment":"タイムアウト","changed_by":"CI"}' http://127.0.0.1:3000/api/runs/1/results/by-key/LOGIN-001
 curl -F file=@screenshot.png http://127.0.0.1:3000/api/runs/1/results/by-key/LOGIN-001/attachments
 ```
+
+## CSVエクスポート・インポート
+
+方式は [ADR-0001](adr/0001-csv-import-export.md)、列の一覧と受け入れ基準は [SOW-0001](sow/0001-import-export.md)。
+
+- 出力はUTF-8（BOM付き・CRLF）。ファイル名は `<アプリ名>_テスト項目_YYYYMMDD_HHMMSS.csv` / `<アプリ名>_実行履歴_...`
+  （`Content-Disposition` の `filename*`。`filename` はASCIIの代替名）。
+- 取り込みはUTF-8のみ（BOM任意）。Shift_JIS等は400。5MB・5000行まで。ヘッダーは英語のフィールド名、列順は自由、不明な列は400。
+- `tz`（IANA名、例 `Asia/Tokyo`）で日時の地域時間を指定。省略時UTC。画面はブラウザーの設定値を送る。
+  出力はUTCオフセット付きの `YYYY-MM-DD HH:MM:SS±HH:MM`（例: `2026-11-26 15:30:00+09:00`）。
+  取り込みはこの形式に加え、従来のオフセットなし `YYYY-MM-DD HH:MM[:SS]`、`YYYY/MM/DD HH:MM[:SS]` とRFC 3339を受け付ける。オフセットなしの値は `tz` の地域時間として解釈する。
+- 列挙値は内部コードのみ（`manual`、`passed` など）。真偽値は `true` / `false`。
+- 出力時はセル内の改行をLFに統一し、先頭の連続する `'`（0個以上）の次が `=` `+` `-` `@` タブ・CR・LFのセルに `'` を1個付ける。取り込み時は、先頭の `'` を1個除いた値が同じ条件に該当する場合だけ、その1個を外す。元からある `'` も未編集の往復で維持する。
+- 取り込みはmultipartの `file`（必須）と `changed_by`（任意）。`?dry_run=true` は書き込まずに判定だけ返す。
+  反映は全行を1トランザクションで行い、1行でもエラーがあれば422で何も書き込まない。
+  新規ケースと同じ識別子が反映処理中に作成された場合は409で全体を取り消し、再度の事前確認を求める。
+  改行表現（CRLF・CR・LF）だけが異なるテキストは変更なしとし、保存済みの値を維持する。
+  変更は編集履歴に `reason`「CSVインポート: <ファイル名>」で記録し、変更のない行は記録しない。CSVにない行は変更しない。
+
+```sh
+curl -OJ 'http://127.0.0.1:3000/api/apps/1/cases/export?tz=Asia/Tokyo&include_inactive=true'
+curl -F file=@cases.csv -F changed_by=me 'http://127.0.0.1:3000/api/apps/1/cases/import?dry_run=true&tz=Asia/Tokyo'
+curl -OJ 'http://127.0.0.1:3000/api/apps/1/runs/export?tz=Asia/Tokyo&from=2026-11-01&to=2026-11-30'
+curl -F file=@runs.csv 'http://127.0.0.1:3000/api/apps/1/runs/import?tz=Asia/Tokyo'
+```
+
+応答（事前確認・反映とも同じ形。`created_runs` は実行履歴の反映時のみ）:
+
+```json
+{"dry_run":true,"applied":false,"summary":{"created":0,"updated":1,"unchanged":3,"errors":0},
+ "rows":[{"line":2,"key":"LOGIN-001","action":"updated","changes":{"title":["旧","新"]}}],
+ "created_runs":{"NEW-1":12}}
+```
+
+テスト項目:
+
+- `case_key` で照合し、なければ作成。必須列は `case_key,title,steps,expected_result,test_type`。
+  任意列（`category,precondition,sort_order,is_active`）がない場合は既存値（新規は既定値）を使う。`updated_at` は出力専用。
+
+実行履歴:
+
+- 必須列は `run_id,case_key`。`run_id` が数値なら既存の実行回、`NEW-` で始まるラベルなら新しい実行回（同じラベルの行で1回）。
+- 実行回の列（`run_type,started_at,finished_at,runner_name,executed_by,app_version,device_name,android_version,run_notes,run_summary`）は
+  同じ実行回の行で同じ値にする。既存の実行回では `run_type`・`started_at` は変更不可、空の `finished_at` は現在値を維持。
+  実行回の列の差分は、その実行回の最初の行に表示する。
+- 既存の実行回に含まれないケースはエラー。新しい実行回は有効なケースのみで、取り込み時点の定義をスナップショットに保存する。
+- `from`/`to` は `tz` における開始日（両端を含む）、`run_ids` はカンマ区切り。`case_title`・`attachment_count`・`result_updated_at` は出力専用。
 
 ## 冪等性キー（Idempotency-Key）
 
