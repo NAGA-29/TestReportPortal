@@ -127,7 +127,23 @@ const { chromium } = require("playwright");
     await route.continue();
   });
   await dialog.getByRole("button", { name: "反映する" }).click();
-  await applyPending;
+  let applyTimeout;
+  try {
+    await Promise.race([
+      applyPending,
+      new Promise((_, reject) => {
+        applyTimeout = setTimeout(() => {
+          reject(new Error([
+            "反映リクエストが送信されませんでした",
+            ...errors,
+          ].join("\n")));
+        }, 10000);
+        applyTimeout.unref();
+      }),
+    ]);
+  } finally {
+    clearTimeout(applyTimeout);
+  }
   await page.keyboard.press("Escape");
   if (
     !(await dialog.isVisible()) ||
